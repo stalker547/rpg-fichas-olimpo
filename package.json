@@ -1,6 +1,6 @@
 {
   "name": "rpg-fichas",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Gerenciador local de fichas de RPG",
   "main": "main.js",
   "author": "Sergio",
@@ -42,6 +42,7 @@
       "assets/ocr/**/*",
       "node_modules/tesseract.js/**/*",
       "node_modules/tesseract.js-core/**/*",
+      "node_modules/regenerator-runtime/**/*",
       "node_modules/sharp/**/*",
       "node_modules/@img/**/*",
       "node_modules/better-sqlite3/**/*"
@@ -68,6 +69,7 @@
   "dependencies": {
     "better-sqlite3": "^12.11.1",
     "electron-updater": "^6.8.9",
+    "regenerator-runtime": "0.13.11",
     "sharp": "^0.34.5",
     "tesseract.js": "^6.0.1"
   }
