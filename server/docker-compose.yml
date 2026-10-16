@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: rpg_fichas
+      POSTGRES_USER: rpg_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - rpg_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rpg_user -d rpg_fichas"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://rpg_user:${POSTGRES_PASSWORD}@db:5432/rpg_fichas
+      JWT_SECRET: ${JWT_SECRET}
+      SETUP_SECRET: ${SETUP_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      LOCK_SECONDS: ${LOCK_SECONDS:-120}
+      MEDIA_ROOT: /app/data/media
+    volumes:
+      - rpg_media:/app/data/media
+    expose:
+      - "3000"
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-olimpo.astratoons.com}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+volumes:
+  rpg_postgres:
+  rpg_media:
+  caddy_data:
+  caddy_config:

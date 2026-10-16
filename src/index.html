@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RPG Fichas</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="progress.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-mark">Ω</span><div><strong>RPG Fichas</strong><small>Arquivo de personagens</small></div></div>
+    <div class="main-menu"><button id="menu-sheets" class="menu-button active">▣ Fichas</button><button id="menu-archived" class="menu-button">▰ Fichas engavetadas</button><button id="menu-directory" class="menu-button">♙ Personagens / NPCs</button></div>
+    <button id="new-character" class="primary wide">＋ Novo personagem</button>
+    <div id="character-list" class="character-list"></div>
+    <div class="side-footer"><button id="customize-menu" class="ghost wide">⚙ Personalizar meu menu</button><button id="open-data" class="ghost wide">Abrir pasta dos dados</button><small>Salvamento local automático ao confirmar</small></div>
+  </aside>
+  <main>
+    <header class="topbar">
+      <div><span class="eyebrow">PERSONAGEM ATUAL</span><h1 id="character-title">RPG Fichas</h1></div>
+      <div class="header-actions"><span id="save-state" class="save-state">Pronto</span><button id="manage-users" class="ghost hidden">Usuários</button><button id="account-button" class="ghost">Conta</button><button id="export" class="ghost">Exportar TXT</button><button id="save" class="primary">Salvar alterações</button></div>
+    </header>
+    <nav id="tabs" class="tabs"></nav>
+    <section id="content" class="content"></section>
+  </main>
+  <div id="dirty-bar" class="dirty-bar hidden"><div><strong>Alterações não salvas</strong><span>Salve para manter edições e exclusões no histórico.</span></div><button id="discard-bottom" class="ghost">Descartar</button><button id="save-bottom" class="primary">Salvar alterações</button></div>
+  <div id="toast-area" class="toast-area"></div>
+  <div id="login-screen" class="login-screen">
+    <div class="login-card">
+      <div class="login-brand"><span class="brand-mark">Ω</span><div><h1>RPG Fichas</h1><p id="login-subtitle">Entre para acessar seus personagens.</p></div></div>
+      <form id="login-form"><div id="setup-name-field" class="field hidden"><label>Nome da mestre</label><input id="login-name" autocomplete="name"></div><div class="field"><label>Usuário</label><input id="login-username" autocomplete="username" required></div><div class="field"><label>Senha</label><input id="login-password" type="password" autocomplete="current-password" required></div><p id="login-error" class="login-error"></p><button id="login-submit" class="primary wide" type="submit">Entrar</button></form>
+    </div>
+  </div>
+  <div id="account-modal" class="modal hidden"><div class="modal-card account-card"><div class="section-head"><div><h2 id="account-title">Conta</h2><p id="account-description"></p></div><button id="close-account" class="ghost">Fechar</button></div><section class="change-password-panel"><h3>Alterar minha senha</h3><div class="form-grid"><div class="field"><label>Senha atual</label><input id="current-password" type="password" autocomplete="current-password"></div><div class="field"><label>Nova senha <small>(mínimo 4 caracteres)</small></label><input id="new-password" type="password" minlength="4" autocomplete="new-password"></div></div><p id="password-error" class="login-error"></p><button id="change-password" class="primary">Salvar nova senha</button></section><div class="account-actions-panel"><button id="logout" class="danger wide">Sair da conta</button></div></div></div>
+  <div id="users-modal" class="modal hidden"><div class="modal-card users-card"><div class="section-head"><div><h2>Usuários e fichas</h2><p>Crie jogadores e escolha quem é o dono de cada personagem.</p></div><button id="close-users" class="ghost">Fechar</button></div><div class="users-layout"><section><h3>Novo usuário</h3><div class="form-grid"><div class="field"><label>Nome</label><input id="new-user-name" autocomplete="name" placeholder="Nome do jogador"></div><div class="field"><label>Usuário <small>(mínimo 3 caracteres)</small></label><input id="new-user-username" autocomplete="off" minlength="3" required placeholder="Ex.: thales"></div><div class="field"><label>Senha inicial <small>(mínimo 4 caracteres)</small></label><input id="new-user-password" type="password" autocomplete="new-password" minlength="4" required placeholder="Crie uma senha"></div><div class="field"><label>Tipo</label><select id="new-user-role"><option value="player">Jogador</option><option value="admin">Mestre / Admin</option></select></div></div><button id="create-user" class="primary">Criar usuário</button><p id="user-error" class="login-error"></p><div id="users-list" class="users-list"></div></section><section><h3>Dono das fichas</h3><div id="character-owners" class="character-owners"></div></section></div></div></div>
+  <div id="appearance-modal" class="modal hidden"><div class="modal-card appearance-card"><div class="section-head"><div><h2>Personalizar meu menu</h2><p>Este visual pertence somente à sua conta.</p></div><button id="close-appearance" class="ghost">Fechar</button></div><div class="appearance-layout"><section><h3>Cores</h3><div class="appearance-colors"><label>Fundo<input id="appearance-bg" type="color"></label><label>Cartões<input id="appearance-panel" type="color"></label><label>Menu lateral<input id="appearance-sidebar" type="color"></label><label>Destaque e botões<input id="appearance-accent" type="color"></label><label>Texto<input id="appearance-text" type="color"></label><label>Texto secundário<input id="appearance-muted" type="color"></label></div></section><section><h3>Imagem de fundo</h3><div id="appearance-background-preview" class="appearance-background-preview"><span>Nenhuma imagem escolhida</span></div><div class="appearance-actions"><button id="choose-appearance-background" class="ghost">Escolher imagem</button><button id="remove-appearance-background" class="danger-link">Remover imagem</button></div><p class="muted">A imagem fica guardada na pasta de dados e só aparece quando você entra.</p></section></div><div class="modal-actions"><button id="reset-appearance" class="ghost">Restaurar padrão</button><button id="save-appearance" class="primary">Salvar minha aparência</button></div></div></div>
+  <div id="import-modal" class="modal hidden">
+    <div class="modal-card">
+      <div class="section-head"><div><h2>Colar ficha atual</h2><p>Cole todo o conteúdo do arquivo TXT. As informações reconhecidas atualizarão o personagem selecionado.</p></div><button id="close-import" class="ghost">Fechar</button></div>
+      <textarea id="import-text" class="import-text" placeholder="Cole aqui o conteúdo completo da ficha..."></textarea>
+      <div id="import-preview" class="import-preview">A prévia aparecerá aqui.</div>
+      <div class="modal-actions"><button id="preview-import" class="ghost">Analisar texto</button><button id="apply-import" class="primary" disabled>Atualizar personagem</button></div>
+    </div>
+  </div>
+  <div id="ocr-modal" class="modal hidden">
+    <div class="modal-card">
+      <div class="section-head"><div><h2>Habilidades encontradas</h2><p>Confira e corrija o texto lido da imagem antes de adicionar à ficha.</p></div><button id="close-ocr" class="ghost">Fechar</button></div>
+      <div id="ocr-results" class="ocr-results"></div>
+      <div class="modal-actions"><button id="apply-ocr" class="primary">Adicionar habilidades à ficha</button></div>
+    </div>
+  </div>
+  <div id="photo-modal" class="modal hidden">
+    <div class="modal-card photo-editor-card">
+      <div class="section-head"><div><h2>Ajustar foto</h2><p>Escolha como a imagem aparecerá no perfil do personagem.</p></div><button id="close-photo-editor" class="ghost">Fechar</button></div>
+      <div class="photo-editor-layout"><div><div class="photo-preview" id="photo-drag-area"><img id="photo-preview-image" alt="Prévia da foto"><div class="photo-circle-guide"><span>FOTO DO PERFIL</span></div></div><p class="drag-help">🖱 Segure e arraste a imagem. Posicione o rosto dentro do círculo.</p></div><div class="photo-controls"><div class="field"><label>Enquadramento</label><select id="photo-fit"><option value="cover">Preencher o espaço</option><option value="contain">Mostrar foto inteira</option></select></div><div class="field"><label>Posição horizontal: <b id="photo-x-value">50%</b></label><input id="photo-x" type="range" min="0" max="100" value="50"></div><div class="field"><label>Posição vertical: <b id="photo-y-value">50%</b></label><input id="photo-y" type="range" min="0" max="100" value="50"></div><div class="field"><label>Zoom: <b id="photo-zoom-value">100%</b></label><input id="photo-zoom" type="range" min="100" max="250" value="100"></div><button id="reset-photo" class="ghost">Centralizar</button></div></div>
+      <div class="modal-actions"><button id="apply-photo" class="primary">Aplicar enquadramento</button></div>
+    </div>
+  </div>
+  <script src="parser.js"></script>
+  <script src="progression.js"></script>
+  <script src="rpg-rules.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

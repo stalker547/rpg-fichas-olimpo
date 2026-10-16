@@ -1,0 +1,50 @@
+name: Publicar atualização do RPG Fichas
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publicar:
+    runs-on: windows-latest
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Preparar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Testar
+        run: npm test
+
+      - name: Definir versão desta atualização
+        shell: pwsh
+        run: npm version "1.0.$env:GITHUB_RUN_NUMBER" --no-git-tag-version
+
+      - name: Gerar instalador
+        run: npm run build
+
+      - name: Publicar atualização
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = "1.0.$env:GITHUB_RUN_NUMBER"
+          gh release create "v$version" `
+            "dist/RPG Fichas Setup $version.exe" `
+            "dist/RPG Fichas Setup $version.exe.blockmap" `
+            "dist/latest.yml" `
+            --repo "${{ github.repository }}" `
+            --title "RPG Fichas $version" `
+            --notes "Atualização automática do RPG Fichas." `
+            --latest

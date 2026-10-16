@@ -1,0 +1,74 @@
+{
+  "name": "rpg-fichas",
+  "version": "1.0.0",
+  "description": "Gerenciador local de fichas de RPG",
+  "main": "main.js",
+  "author": "Sergio",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test",
+    "build": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^37.2.6",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "br.sergio.rpgfichas",
+    "productName": "RPG Fichas",
+    "directories": {
+      "output": "dist"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "stalker547",
+      "repo": "rpg-fichas-olimpo",
+      "releaseType": "release"
+    },
+    "files": [
+      "main.js",
+      "online-main.js",
+      "online-client.js",
+      "merge-character.js",
+      "storage.js",
+      "ocr-table.js",
+      "preload.js",
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "assets/ocr/**/*",
+      "node_modules/tesseract.js/**/*",
+      "node_modules/tesseract.js-core/**/*",
+      "node_modules/sharp/**/*",
+      "node_modules/@img/**/*",
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "RPG Fichas Setup ${version}.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "RPG Fichas"
+    }
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.11.1",
+    "electron-updater": "^6.8.9",
+    "sharp": "^0.34.5",
+    "tesseract.js": "^6.0.1"
+  }
+}

@@ -1,0 +1,18 @@
+node_modules/
+server/node_modules/
+dist/
+data/
+RPG Fichas - Dados/
+RPG-Fichas-Portatil-*/
+RPG-Fichas-Servidor-VPS/
+RPG-Fichas-Servidor-VPS.zip
+*.log
+*.db
+*.db-shm
+*.db-wal
+.env
+server/.env
+server/media/
+server/backups/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "characters": [
+    {
+      "id": "silas",
+      "name": "Silas",
+      "profile": { "age": "17", "current": "", "parent": "Hades", "recognized": "Não", "level": 15, "xp": 0, "divineBonus": 0, "coins": 10 },
+      "attributes": { "Força": 5, "Destreza": 10, "Velocidade": 4, "Resistência": 10, "Inteligência": 10, "Sorte": 2 },
+      "skills": [
+        { "name": "Armas médias", "value": 13, "bonus": 3 }, { "name": "Poder divino", "value": 14, "bonus": 3 },
+        { "name": "Intuição", "value": 6, "bonus": 0 }, { "name": "Controle", "value": 3, "bonus": 0 },
+        { "name": "Luta corporal", "value": 2, "bonus": 0 }, { "name": "Furtividade", "value": 7, "bonus": 0 },
+        { "name": "Atuação", "value": 1, "bonus": 0 }, { "name": "Caça", "value": 2, "bonus": 0 },
+        { "name": "Necromancia", "value": 1, "bonus": 0 }
+      ],
+      "learning": [{ "name": "Atletismo", "current": 3, "goal": 10 }, { "name": "Percepção", "current": 1, "goal": 10 }],
+      "quests": [{ "name": "Artes marciais", "value": 10, "current": 1, "goal": 10 }, { "name": "Treinamento", "value": 10, "current": 9, "goal": 10 }, { "name": "Grego", "value": 10, "current": 3, "goal": 10 }],
+      "abilities": [
+        { "name": "Possessão", "effect": "Quando em forma espiritual pode possuir um corpo contanto que seja humanoide; o conjurador e o alvo devem rolar um d100 puro de resistência.", "level": 1 },
+        { "name": "Evasão", "effect": "Caso não queira lutar, tem +6 nos dados de esquiva.", "level": 1 },
+        { "name": "Bem estar", "effect": "Quando estiver em um local tomado por sentimentos ruins, más vibrações, sombras ou cemitérios, obtém uma cura involuntária.", "level": 1 },
+        { "name": "Respeito do submundo", "effect": "Monstros e criaturas malignas, infernais ou sombras reconhecem sua linhagem e evitam atacá-lo se possível. Quanto mais fraca a criatura, maior a chance, porém ela não o obedece.", "level": 1 },
+        { "name": "Gritos infernais", "effect": "Faz o som do Mundo Inferior chegar à superfície e permanecer até o fim da batalha, afetando principalmente inimigos e podendo causar danos permanentes após mais de 5 turnos.", "level": 1 },
+        { "name": "Pouso de pena", "effect": "Quando estiver caindo de uma pequena altitude, consegue aterrissar de maneira relativamente tranquila.", "level": 1 },
+        { "name": "Disparo longo", "effect": "Ao arremessar algo ou disparar uma flecha, pode concentrar-se e reunir uma pequena energia local, aumentando um pouco o alcance do projétil.", "level": 1 }
+      ],
+      "gods": { "Afrodite": 43, "Apolo": 45, "Ares": 44, "Ártemis": 43, "Atena": 43, "Hades": 63, "Hefestos": 57, "Hermes": 69, "Héstia": 55, "Nix": 33, "Poseidon": 38, "Zeus": 33 },
+      "ideas": [], "creations": [], "milestones": [], "backpack": { "petFood": 0, "travelMeals": 0, "jobs": [], "items": ["", "", "", "", "", "", "", "", "", ""] }, "notes": "", "story": "", "goals": "", "relationships": "", "inventory": "", "companions": [],
+      "gallery": [{ "id": "silas-habilidades", "name": "Habilidades originais", "path": "E:\\Users\\sergio\\Desktop\\rpg\\Olimpos\\Fichas\\Silas\\silas habilidade.png" }], "history": []
+    },
+    {
+      "id": "thales",
+      "name": "Thales",
+      "profile": { "age": "15", "current": "", "parent": "Ártemis", "recognized": "", "occupation": "Ajudante na forja", "level": 1, "xp": 0, "divineBonus": 0, "coins": 3 },
+      "attributes": { "Força": 0, "Destreza": 0, "Velocidade": 0, "Resistência": 0, "Inteligência": 0, "Sorte": 0 },
+      "skills": [], "learning": [], "quests": [], "abilities": [], "creations": [{ "type": "Aprendizado", "name": "Rastro marcado", "current": 40, "requirement": 40, "progressMode": "countdown", "initialized": true }], "creationSeeded": true, "gods": {},
+      "ideas": [{ "id": "toxinas", "name": "Resistência a Toxinas", "status": "Rascunho", "effect": "Desenvolver resistência gradual a venenos e toxinas por estudo, treinamento e ingestões controladas de pequenas doses.", "requirements": "Medicina 11+, Veneno 11+, Poder Divino 11+, Inteligência 11+ e Resistência 11+", "development": "Começar por toxinas mais fracas e avançar conforme a evolução.", "evolution": "Sangue Tóxico", "masterRequest": "Jhenny, queria perguntar com antecedência sobre uma habilidade que eu gostaria de tentar criar futuramente para o Thales. Se eu conseguir chegar a 11+ em Medicina, Veneno e Poder Divino, além de ter 11+ de Inteligência e Resistência, eu poderia tentar criar a habilidade Resistência a Toxinas? A intenção não é ficar imune imediatamente, mas desenvolver a resistência aos poucos durante a história, através de estudo, treinamento e ingestões controladas de pequenas doses, começando com toxinas mais fracas. Estou perguntando agora para saber se você aprova a ideia antes de eu investir os pontos nessa direção." }],
+      "notes": "Educado, comunicativo e cuidadoso com os animais.", "story": "Semideus, filho de Ártemis.",
+      "goals": "Desenvolver Resistência a Toxinas, evoluir para Sangue Tóxico e, no encerramento do arco, tentar ascender como Deus Menor do Sangue antes de se tornar NPC de Olímpo.",
+      "relationships": "", "extraInfo": "", "inventory": "", "milestones": [{ "id": "resistencia-toxinas", "name": "Resistência a Toxinas", "startDate": "2026-08-17", "status": "Em preparação", "conclusionDate": "", "requirements": [{ "name": "Veneno", "current": 6, "target": 11, "linked": true }, { "name": "Medicina", "current": 0, "target": 11, "linked": true }, { "name": "Grego", "current": 2, "target": 11, "linked": true }, { "name": "Inteligência", "current": 0, "target": 11, "linked": true }, { "name": "Resistência", "current": 0, "target": 11, "linked": true }], "notes": "" }], "toxinGoalSeeded": true, "backpack": { "petFood": 7, "travelMeals": 0, "jobs": [{ "name": "Ajudante na forja", "value": "" }], "items": ["", "", "", "", "", "", "", "", "", ""] }, "backpackSeeded": true, "occupationSeeded": true, "companions": [{ "name": "Cervo", "details": "" }, { "name": "Corvo", "details": "" }, { "name": "Estrelinha", "details": "" }, { "name": "Raposinha", "details": "" }, { "name": "Urso", "details": "" }], "gallery": [], "history": []
+    }
+  ]
+}
