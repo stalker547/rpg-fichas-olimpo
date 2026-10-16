@@ -5,6 +5,10 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   const clean = line => line.replace(/\*\*/g, '').trim();
   const num = value => Number(String(value).replace(',', '.')) || 0;
+  const officialSkills=['Artes marciais','Luta corporal','Atletismo','Acrobacia','Mergulho','Furtividade','Armas curtas','Armas médias','Armas longas','Armas a distância','Armas pesadas','Atuação','Canto','Colagem','Fotografia','Ilusionismo','Instrumentos musicais','Piano','Violão','Botânica','Caça','Culinária','Investigação','Medicina','Sobrevivência','Veterinária','Marcenaria','Intuição','Percepção','Olfato','Audição','Controle','Poder divino','Treinamento','Grego','História','Necromancia','Teogonia','Venenos'];
+  const skillKey=value=>{const key=String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').replace(/[^a-z0-9]/g,'');return key.length>3&&key.endsWith('s')?key.slice(0,-1):key};
+  function canonicalSkillName(value,existing=[]){const key=skillKey(value),official=officialSkills.find(name=>skillKey(name)===key);if(official)return official;return existing.find(name=>skillKey(name)===key)||String(value||'').trim()}
+  function canonicalSkills(items,existing=[]){const result=[];for(const raw of items||[]){const item={...raw,name:canonicalSkillName(raw.name,existing)},found=result.find(entry=>skillKey(entry.name)===skillKey(item.name));if(!found){result.push(item);continue}for(const field of ['value','bonus','current','goal','successCount','failureCount'])if(num(item[field])>num(found[field]))found[field]=item[field]}return result}
   const fieldMap = {
     nome: ['name'], idade: ['profile','age'], corrente: ['profile','current'], parente: ['profile','parent'],
     reconhecido: ['profile','recognized'], nível: ['profile','level'], nivel: ['profile','level'], xp: ['profile','xp'],
@@ -20,9 +24,9 @@
   };
   function setNested(target, path, value) { let o=target;path.slice(0,-1).forEach(k=>o=o[k]||(o[k]={}));o[path.at(-1)]=value; }
   function parse(text) {
-    const result={profile:{},pointPools:{},attributes:{},skills:[],learning:[],quests:[],gods:{},inventoryParts:[],recognized:[]};
+    const result={profile:{},pointPools:{},attributes:{},skills:[],learning:[],quests:[],creations:[],ideas:[],gods:{},inventoryParts:[],recognized:[]};
     const lines=String(text||'').replace(/\r/g,'').split('\n').map(clean);
-    let section='', lastQuest='';
+    let section='', lastQuest='',currentCreation=null,creationType='Aprendizado';
     for (const raw of lines) {
       if (!raw || raw==='.') continue;
       const lower=raw.toLocaleLowerCase('pt-BR');
@@ -50,9 +54,23 @@
         const q=raw.match(/^(.*?)\s*-\s*(-?\d+)(?:\s*\(\+?(-?\d+)\))?$/);if(q){result.quests.push({name:q[1].trim(),value:num(q[2]),bonus:q[3]===undefined?0:num(q[3]),current:0,goal:10,action:'use'});continue;}
       }
       if(section==='questProgress'){
-        const req=raw.match(/^Requisito:\s*(?:(use|acerte)\s*)?(\d+)\s*\/\s*(\d+)$/i);
-        if(req && lastQuest){let q=result.quests.find(x=>x.name.toLocaleLowerCase('pt-BR')===lastQuest.toLocaleLowerCase('pt-BR'));if(!q){q={name:lastQuest,value:0,current:0,goal:10,action:'use'};result.quests.push(q);}q.current=num(req[2]);q.goal=num(req[3]);q.action=num(q.value)>=20?'use':String(req[1]||'use').toLocaleLowerCase('pt-BR');continue;}
+        const req=raw.match(/^Requisito\s*:\s*(?:(use|acerte)\s*)?(\d+)\s*\/\s*(\d+)(?:\s*\([^)]*\))?\s*[.!]?$/i);
+        if(req && lastQuest){const questName=lastQuest.replace(/\s*\([^)]*\)\s*$/,'').trim();let q=result.quests.find(x=>skillKey(x.name)===skillKey(questName));if(!q){q={name:questName,value:0,current:0,goal:10,action:'use'};result.quests.push(q);}q.current=num(req[2]);q.goal=num(req[3]);q.action=num(q.value)>=20?'use':String(req[1]||'use').toLocaleLowerCase('pt-BR');continue;}
         lastQuest=raw;continue;
+      }
+      if(section==='creation'){
+        if(!colon){creationType=raw;continue;}
+        const key=colon[1].trim().toLocaleLowerCase('pt-BR'),value=colon[2].trim();
+        if(key==='nome'){
+          const id=`import-creation-${result.creations.length}-${skillKey(value)}`;
+          currentCreation={id,ideaId:`idea-${id}`,type:'Criação de habilidade',sourceType:creationType||'Aprendizado',name:value,current:0,requirement:0,progressMode:'countdown',initialized:true};
+          result.creations.push(currentCreation);continue;
+        }
+        if(!currentCreation)continue;
+        if(key==='requisito'||key==='requisito inicial'){
+          const requirement=Math.max(0,num(value.match(/-?\d+(?:[.,]\d+)?/)?.[0]));currentCreation.requirement=requirement;if(!currentCreation.current)currentCreation.current=requirement;continue;
+        }
+        if(key==='restante'){currentCreation.current=Math.max(0,num(value));continue;}
       }
       if(section==='gods'){
         const god=raw.match(/^(.*?)\s*-\s*(-?\d+)$/);if(god){result.gods[god[1].trim()]=num(god[2]);continue;}
@@ -60,6 +78,8 @@
       if(section==='inventory') result.inventoryParts.push(raw);
     }
     result.inventory=result.inventoryParts.join('\n');delete result.inventoryParts;
+    result.creations=result.creations.filter(creation=>creation.name&&creation.requirement>0);
+    result.ideas=result.creations.map(creation=>({id:creation.ideaId,name:creation.name,type:'active',status:'Em desenvolvimento',initialRequirement:creation.requirement,effect:'',requirements:'',development:'',evolution:'',masterRequest:'Importada do TXT para revisão da mestre.',approvedFromImport:true}));
     return result;
   }
   function apply(character, parsed) {
@@ -68,9 +88,11 @@
     out.profile={...out.profile,...parsed.profile};
     if(Object.keys(parsed.pointPools||{}).length)out.pointPools={...(out.pointPools||{}),...parsed.pointPools};
     if(Object.keys(parsed.attributes).length)out.attributes={...out.attributes,...parsed.attributes};
-    if(parsed.skills.length)out.skills=parsed.skills;
-    if(parsed.learning.length)out.learning=parsed.learning;
-    if(parsed.quests.length)out.quests=parsed.quests;
+    const existingNames=[...(out.skills||[]),...(out.learning||[]),...(out.quests||[])].map(item=>item.name);
+    if(parsed.skills.length)out.skills=canonicalSkills(parsed.skills,existingNames);
+    if(parsed.learning.length)out.learning=canonicalSkills(parsed.learning,existingNames);
+    if(parsed.quests.length)out.quests=canonicalSkills(parsed.quests,existingNames);
+    if(parsed.creations?.length){out.creations||=[];out.ideas||=[];for(const parsedCreation of parsed.creations){let creation=out.creations.find(item=>skillKey(item.name)===skillKey(parsedCreation.name)),idea=out.ideas.find(item=>skillKey(item.name)===skillKey(parsedCreation.name));if(!idea){idea={...(parsed.ideas||[]).find(item=>skillKey(item.name)===skillKey(parsedCreation.name))};out.ideas.push(idea)}idea.id||=parsedCreation.ideaId;idea.name=parsedCreation.name;idea.status='Em desenvolvimento';idea.initialRequirement=parsedCreation.requirement;idea.approvedFromImport=true;if(!creation){creation={...parsedCreation};out.creations.push(creation)}else{creation.type='Criação de habilidade';creation.current=parsedCreation.current;creation.requirement=parsedCreation.requirement;creation.progressMode='countdown';creation.initialized=true}creation.ideaId=idea.id}}
     if(Object.keys(parsed.gods).length)out.gods=parsed.gods;
     if(parsed.inventory)out.inventory=parsed.inventory;
     return out;

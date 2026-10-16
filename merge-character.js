@@ -1,7 +1,9 @@
 const equal=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 const ignored=new Set(['_remoteVersion','_remoteCampaignId','updatedAt','changeNote','changeSource','history']);
-function mergeCharacter(base,local,remote){
+function mergeCharacter(base,local,remote,{preferRemote=[]}={}){
+ const remoteWins=new Set(preferRemote);
  function merge(b,l,r,path=''){
+  if(path&&remoteWins.has(path))return structuredClone(r);
   if(equal(l,b))return structuredClone(r);
   if(equal(r,b)||equal(l,r))return structuredClone(l);
   if(b&&l&&r&&typeof b==='object'&&typeof l==='object'&&typeof r==='object'&&!Array.isArray(b)&&!Array.isArray(l)&&!Array.isArray(r)){

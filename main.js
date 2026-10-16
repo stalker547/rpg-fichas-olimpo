@@ -338,6 +338,8 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('before-quit', () => storage.close());
 
+ipcMain.handle('app:check-updates',async()=>{if(!app.isPackaged)return {status:'development',message:'A verificação automática funciona no aplicativo instalado.'};try{const result=await autoUpdater.checkForUpdates();return {status:'checking',message:result?.updateInfo?.version?`Versão disponível consultada: ${result.updateInfo.version}.`:'Verificação iniciada.'}}catch(error){throw new Error(`Não foi possível verificar atualizações: ${error.message}`)}});
+
 ipcMain.handle('auth:status', () => ({ hasUsers:(readDb().settings.authUsers||[]).length>0 }));
 ipcMain.handle('auth:setup', (event, data) => {
   const db=readDb();if((db.settings.authUsers||[]).length)throw new Error('A conta da mestre já foi criada.');
@@ -426,7 +428,7 @@ ipcMain.handle('db:save-character', (event, character, settings) => {
 });
 ipcMain.handle('db:delete-character', (event, id) => {
   const db = readDb();
-  const user=sessionUser(event,db),character=db.characters.find(item=>item.id===id);if(!character)return visibleDb(db,user);if(user.role!=='admin'&&character.ownerUserId!==user.id)throw new Error('Você não pode excluir esta ficha.');
+  const user=sessionUser(event,db),character=db.characters.find(item=>item.id===id);if(!character)return visibleDb(db,user);if(user.role!=='admin')throw new Error('Somente a mestre pode excluir esta ficha.');
   db.characters = db.characters.filter(c => c.id !== id);
   writeDb(db);
   return visibleDb(db,user);

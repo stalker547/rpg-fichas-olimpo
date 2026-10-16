@@ -13,8 +13,8 @@ test('online login reads campaign, remote versions and assigned owner',async()=>
 });
 test('save sends original version and removes client metadata',async()=>{
  let sent;const client=new OnlineClient({fetch:async(url,options)=>{sent=JSON.parse(options.body);return {ok:true,text:async()=>JSON.stringify({id:'a',version:3})}}});
- await client.save({id:'a',name:'A',_remoteVersion:2,_remoteCampaignId:'c'});
- assert.equal(sent.version,2);assert.equal(sent.data._remoteVersion,undefined);
+ await client.save({id:'a',name:'A',changeSource:'txt-import',_remoteVersion:2,_remoteCampaignId:'c'});
+ assert.equal(sent.version,2);assert.equal(sent.data._remoteVersion,undefined);assert.equal(sent.source,'txt-import');assert.equal(sent.data.changeSource,'txt-import');
 });
 test('network failure never falls back to the local database',async()=>{
  const client=new OnlineClient({fetch:async()=>{throw new Error('offline')}});

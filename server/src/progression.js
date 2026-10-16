@@ -11,6 +11,16 @@
    idea.creationCompleted=true;idea.completedCreation={...creation,current:0};changed=true;
   }
   if(completed.length)character.creations=character.creations.filter(c=>!completed.includes(c));
+  character.skills||=[];character.quests||=[];
+  const completedQuests=character.quests.filter(q=>Number(q.goal)>0&&Number(q.current)>=Number(q.goal));
+  for(const quest of completedQuests){
+   const key=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+   const existing=character.skills.find(skill=>key(skill.name)===key(quest.name)),nextValue=Math.min(50,Math.max(1,Number(quest.value)||0)+1);
+   if(existing){existing.value=Math.max(Number(existing.value)||0,nextValue);existing.bonus=Math.max(Number(existing.bonus)||0,Number(quest.bonus)||0)}
+   else character.skills.push({id:quest.id||`quest-complete-${key(quest.name)}`,name:quest.name||'Nova perícia',value:nextValue,bonus:Number(quest.bonus)||0,successCount:0,failureCount:0});
+   changed=true;
+  }
+  if(completedQuests.length)character.quests=character.quests.filter(q=>!completedQuests.includes(q));
   for(const ability of character.abilities||[]){
    const goal=Math.max(1,Number(ability.useGoal)||25),current=Math.max(0,Number(ability.useCurrent)||0);
    if(current>=goal){ability.level=Math.max(1,Number(ability.level)||1)+Math.floor(current/goal);ability.useCurrent=current%goal;ability.useGoal=goal;changed=true}

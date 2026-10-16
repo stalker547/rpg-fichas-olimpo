@@ -13,8 +13,11 @@
  function purchaseAttribute(character,key,requested){const before=number(character.attributes?.[key]),after=Math.max(1,Math.floor(number(requested))),cost=after-before,available=number(character.pointPools?.attributes);if(cost<0)throw new Error('O aumento de atributo não permite diminuir valores.');if(cost>available)throw new Error('Não há pontos de atributo suficientes para esse aumento.');character.attributes[key]=after;character.pointPools.attributes=available-cost;return cost}
  function addPaidSkill(character,id){const available=number(character.pointPools?.skills);if(available<3)throw new Error('São necessários 3 pontos para adicionar uma perícia.');character.skills||=[];character.skills.push({id:id||globalThis.crypto.randomUUID(),name:'Nova perícia',value:1,bonus:0});character.pointPools.skills=available-3;return 3}
  function advanceQuest(quest,success,authorized=false){
-  const tier=Math.max(10,number(quest.value)||10);if(tier>=40&&!authorized)return 0;
-  const amount=tier<=10?(success?2:1):(success?1:0),before=number(quest.current),goal=number(quest.goal);
+  const tier=Math.max(10,number(quest.value)||10);if(tier>=40&&!authorized&&success)return 0;
+  const before=number(quest.current),goal=number(quest.goal);let amount=0;
+  if(tier<10)amount=success?2:1;
+  else if(success){const needed=Math.max(1,Math.floor(tier/10));quest.successCount=number(quest.successCount)+1;if(quest.successCount>=needed){amount=1;quest.successCount=0}}
+  else{const needed=Math.floor(tier/10)+1;quest.failureCount=number(quest.failureCount)+1;if(quest.failureCount>=needed){amount=1;quest.failureCount=0}}
   quest.current=goal>0?Math.min(goal,before+amount):before+amount;return quest.current-before;
  }
  function effects(item){return item.effects?.length?item.effects:[{attribute:item.attribute,targetType:item.targetType||'attribute',bonus:number(item.bonus)}]}

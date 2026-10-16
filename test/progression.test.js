@@ -17,3 +17,9 @@ test('incomplete and uninitialized progress remains unchanged',()=>{
  const c={creations:[{current:0,requirement:0},{current:1,requirement:40}],abilities:[{level:1,useCurrent:24,useGoal:25}]};
  assert.equal(applyProgression(c),false);assert.equal(c.creations.length,2);assert.equal(c.abilities[0].level,1);
 });
+
+test('quest concluída volta para perícias com um nível a mais',()=>{
+ const c={skills:[],quests:[{id:'training',name:'Treinamento',value:10,bonus:0,current:10,goal:10}],creations:[],ideas:[],abilities:[]};
+ assert.equal(applyProgression(c),true);assert.equal(c.quests.length,0);assert.equal(c.skills.length,1);assert.equal(c.skills[0].name,'Treinamento');assert.equal(c.skills[0].value,11);
+ assert.equal(applyProgression(c),false);assert.equal(c.skills[0].value,11);
+});

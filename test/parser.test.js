@@ -46,6 +46,21 @@ test('interpreta o formato TXT atual', () => {
 test('não confunde nome de criação com nome do personagem', () => {
   const result = parse('Nome: Thales\n\nCriação de habilidade:\nAprendizado\nNome: Rastro marcado\nRequisito: 40');
   assert.equal(result.name, 'Thales');
+  assert.equal(result.creations[0].name,'Rastro marcado');
+  assert.equal(result.creations[0].current,40);
+  assert.equal(result.creations[0].requirement,40);
+  assert.equal(result.ideas[0].status,'Em desenvolvimento');
+  assert.equal(result.ideas[0].initialRequirement,40);
+});
+
+test('requisito editado vira máximo provisório e cria ideia vinculada',()=>{
+  const parsed=parse('Criação de habilidade\nAprendizado\nNome: Rastro marcado\nRequisito: 27 (editado)');
+  const updated=apply({name:'Herói',profile:{},attributes:{},skills:[],learning:[],quests:[],abilities:[],creations:[],ideas:[],gods:{}},parsed);
+  assert.equal(updated.creations[0].current,27);
+  assert.equal(updated.creations[0].requirement,27);
+  assert.equal(updated.creations[0].ideaId,updated.ideas[0].id);
+  assert.equal(updated.ideas[0].status,'Em desenvolvimento');
+  assert.equal(updated.ideas[0].initialRequirement,27);
 });
 
 test('preserva habilidades e ideias durante a importação', () => {
@@ -71,6 +86,13 @@ test('importa vida atual e vida máxima do TXT', () => {
   assert.equal(updated.profile.healthMax,80);
 });
 
+test('usa o nome oficial e elimina perícias repetidas ao colar TXT', () => {
+  const parsed=parse('Perícias:\nVeneno - 4\nVenenos - 6\nConhecimento lunar - 2');
+  const updated=apply({name:'Herói',profile:{},attributes:{},skills:[],learning:[],quests:[],gods:{}},parsed);
+  assert.deepEqual(updated.skills.map(skill=>skill.name),['Venenos','Conhecimento lunar']);
+  assert.equal(updated.skills[0].value,6);
+});
+
 test('separa o bônus entre parênteses do valor-base do atributo', () => {
   const parsed = parse('Atributos:\nResistência: 3 (+1)\nInteligência: 8');
   assert.equal(parsed.attributes.Resistência, 2);
@@ -84,6 +106,33 @@ test('quest de perícia nível 20 usa o requisito use e preserva o bônus', () =
   assert.equal(parsed.quests[0].action, 'use');
   assert.equal(parsed.quests[0].current, 2);
   assert.equal(parsed.quests[0].goal, 10);
+});
+
+test('importa o uso atual de todas as quests e aceita a marca editado', () => {
+  const parsed=parse(`Perícias em quest:
+Poder divino - 20 (+3)
+Artes marciais - 10
+Treinamento - 10
+Grego - 10 (editado)
+
+Quest
+Artes marciais
+Requisito: use 1/10
+
+Treinamento
+Requisito: use 9/10
+
+Grego
+Requisito: use 3/10 (editado)
+
+Poder divino
+Requisito: acerte 2/10 (editado)`);
+  assert.deepEqual(Object.fromEntries(parsed.quests.map(q=>[q.name,[q.current,q.goal]])),{
+    'Poder divino':[2,10],
+    'Artes marciais':[1,10],
+    'Treinamento':[9,10],
+    'Grego':[3,10]
+  });
 });
 
 test('atualiza os saldos de pontos somente quando informados no TXT', () => {

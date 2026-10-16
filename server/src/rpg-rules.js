@@ -10,10 +10,14 @@
   skill.value=Math.min(50,level+1);skill.successCount=0;skill.failureCount=0;return 1;
  }
  function purchaseSkillLevel(character,index){const skill=character.skills?.[index];if(!skill)throw new Error('Perícia não encontrada.');const cost=skillPointCost(number(skill.value),number(skill.value)+1),available=number(character.pointPools?.skills);if(available<cost)throw new Error(`São necessários ${cost} pontos de perícia.`);character.pointPools.skills=available-cost;skill.value=number(skill.value)+1;return cost}
+ function purchaseAttribute(character,key,requested){const before=number(character.attributes?.[key]),after=Math.max(1,Math.floor(number(requested))),cost=after-before,available=number(character.pointPools?.attributes);if(cost<0)throw new Error('O aumento de atributo não permite diminuir valores.');if(cost>available)throw new Error('Não há pontos de atributo suficientes para esse aumento.');character.attributes[key]=after;character.pointPools.attributes=available-cost;return cost}
  function addPaidSkill(character,id){const available=number(character.pointPools?.skills);if(available<3)throw new Error('São necessários 3 pontos para adicionar uma perícia.');character.skills||=[];character.skills.push({id:id||globalThis.crypto.randomUUID(),name:'Nova perícia',value:1,bonus:0});character.pointPools.skills=available-3;return 3}
  function advanceQuest(quest,success,authorized=false){
-  const tier=Math.max(10,number(quest.value)||10);if(tier>=40&&!authorized)return 0;
-  const amount=tier<=10?(success?2:1):(success?1:0),before=number(quest.current),goal=number(quest.goal);
+  const tier=Math.max(10,number(quest.value)||10);if(tier>=40&&!authorized&&success)return 0;
+  const before=number(quest.current),goal=number(quest.goal);let amount=0;
+  if(tier<10)amount=success?2:1;
+  else if(success){const needed=Math.max(1,Math.floor(tier/10));quest.successCount=number(quest.successCount)+1;if(quest.successCount>=needed){amount=1;quest.successCount=0}}
+  else{const needed=Math.floor(tier/10)+1;quest.failureCount=number(quest.failureCount)+1;if(quest.failureCount>=needed){amount=1;quest.failureCount=0}}
   quest.current=goal>0?Math.min(goal,before+amount):before+amount;return quest.current-before;
  }
  function effects(item){return item.effects?.length?item.effects:[{attribute:item.attribute,targetType:item.targetType||'attribute',bonus:number(item.bonus)}]}
@@ -26,6 +30,6 @@
   if(items.filter(i=>!i.equipped).length>limits.box)return 'A caixa não possui espaço disponível.';
   return '';
  }
- const rules={skillPointCost,purchaseSkillLevel,addPaidSkill,advanceSkill,advanceQuest,rarityBonus,attributeBonus,capacities,validateEquipment};
+ const rules={skillPointCost,purchaseAttribute,purchaseSkillLevel,addPaidSkill,advanceSkill,advanceQuest,rarityBonus,attributeBonus,capacities,validateEquipment};
  root.RpgRules=rules;if(typeof module!=='undefined'&&module.exports)module.exports=rules;
 })(globalThis);
