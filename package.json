@@ -1,6 +1,6 @@
 {
   "name": "rpg-fichas",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Gerenciador local de fichas de RPG",
   "main": "main.js",
   "author": "Sergio",
@@ -40,12 +40,7 @@
     ],
     "asarUnpack": [
       "assets/ocr/**/*",
-      "node_modules/tesseract.js/**/*",
-      "node_modules/tesseract.js-core/**/*",
-      "node_modules/regenerator-runtime/**/*",
-      "node_modules/sharp/**/*",
-      "node_modules/@img/**/*",
-      "node_modules/better-sqlite3/**/*"
+      "node_modules/**/*"
     ],
     "win": {
       "target": [
