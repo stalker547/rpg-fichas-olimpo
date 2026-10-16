@@ -115,6 +115,9 @@ function readDb() {
   for (const character of db.characters || []) {
     if(typeof character.archived!=='boolean'){character.archived=false;cleaned=true;}
     character.profile ||= {};
+    if (!Number.isFinite(Number(character.profile.healthMax)) || Number(character.profile.healthMax)<1) { character.profile.healthMax=100; cleaned=true; }
+    if (!Number.isFinite(Number(character.profile.healthCurrent))) { character.profile.healthCurrent=character.profile.healthMax; cleaned=true; }
+    if (Number(character.profile.healthCurrent)<0 || Number(character.profile.healthCurrent)>Number(character.profile.healthMax)) { character.profile.healthCurrent=Math.max(0,Math.min(Number(character.profile.healthMax),Number(character.profile.healthCurrent))); cleaned=true; }
     character.attributes ||= {};
     if(Object.prototype.hasOwnProperty.call(character.attributes,'Velocidade')&&!Object.prototype.hasOwnProperty.call(character.attributes,'Carisma')){character.attributes.Carisma=character.attributes.Velocidade;delete character.attributes.Velocidade;cleaned=true;}
     for(const attribute of db.settings.attributeNames)if(!Object.prototype.hasOwnProperty.call(character.attributes,attribute)){character.attributes[attribute]=1;cleaned=true;}

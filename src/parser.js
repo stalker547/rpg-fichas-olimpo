@@ -8,6 +8,7 @@
   const fieldMap = {
     nome: ['name'], idade: ['profile','age'], corrente: ['profile','current'], parente: ['profile','parent'],
     reconhecido: ['profile','recognized'], nível: ['profile','level'], nivel: ['profile','level'], xp: ['profile','xp'],
+    'vida atual': ['profile','healthCurrent'], 'vida máxima': ['profile','healthMax'], 'vida maxima': ['profile','healthMax'],
     'bônus divino': ['profile','divineBonus'], 'bonus divino': ['profile','divineBonus'],
     'pontos de atributos para gastar': ['pointPools','attributes'], 'pontos para gastar em atributos': ['pointPools','attributes'],
     'pontos de perícias para gastar': ['pointPools','skills'], 'pontos de pericias para gastar': ['pointPools','skills'],
@@ -31,7 +32,7 @@
       if(colon){
         const key=colon[1].trim().toLocaleLowerCase('pt-BR');
         const allowedGlobal=key==='bônus divino'||key==='bonus divino'||fieldMap[key]?.[0]==='pointPools';
-        if(fieldMap[key]&&(!section||allowedGlobal)){const isNumber=['level','xp','divineBonus','coins','attributes','skills'].includes(fieldMap[key].at(-1));setNested(result,fieldMap[key],isNumber?num(colon[2]):colon[2]);result.recognized.push(colon[1].trim());continue;}
+        if(fieldMap[key]&&(!section||allowedGlobal)){const isNumber=['level','xp','divineBonus','coins','attributes','skills','healthCurrent','healthMax'].includes(fieldMap[key].at(-1));setNested(result,fieldMap[key],isNumber?num(colon[2]):colon[2]);result.recognized.push(colon[1].trim());continue;}
         if(key==='moedas')continue;
       }
       if(section==='attributes' && colon){

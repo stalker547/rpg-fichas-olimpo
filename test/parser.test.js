@@ -64,6 +64,13 @@ test('preserva atributos não informados ao atualizar nível e XP', () => {
   assert.equal(updated.attributes.Resistência, 2);
 });
 
+test('importa vida atual e vida máxima do TXT', () => {
+  const parsed=parse('Nome: Herói\nVida atual: 37\nVida máxima: 80');
+  const updated=apply({name:'Herói',profile:{healthCurrent:100,healthMax:100},attributes:{},skills:[],learning:[],quests:[],gods:{}},parsed);
+  assert.equal(updated.profile.healthCurrent,37);
+  assert.equal(updated.profile.healthMax,80);
+});
+
 test('separa o bônus entre parênteses do valor-base do atributo', () => {
   const parsed = parse('Atributos:\nResistência: 3 (+1)\nInteligência: 8');
   assert.equal(parsed.attributes.Resistência, 2);
