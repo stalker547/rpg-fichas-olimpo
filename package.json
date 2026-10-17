@@ -1,6 +1,6 @@
 {
   "name": "rpg-fichas",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "description": "Gerenciador local de fichas de RPG",
   "main": "main.js",
   "author": "Sergio",
@@ -51,7 +51,7 @@
           ]
         }
       ],
-      "artifactName": "RPG Fichas Setup ${version}.exe"
+      "artifactName": "RPG-Fichas-Setup-${version}.exe"
     },
     "nsis": {
       "oneClick": true,

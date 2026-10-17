@@ -41,8 +41,8 @@ jobs:
         run: |
           $version = "1.0.$env:GITHUB_RUN_NUMBER"
           gh release create "v$version" `
-            "dist/RPG Fichas Setup $version.exe" `
-            "dist/RPG Fichas Setup $version.exe.blockmap" `
+            "dist/RPG-Fichas-Setup-$version.exe" `
+            "dist/RPG-Fichas-Setup-$version.exe.blockmap" `
             "dist/latest.yml" `
             --repo "${{ github.repository }}" `
             --title "RPG Fichas $version" `
