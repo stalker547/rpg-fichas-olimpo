@@ -28,9 +28,9 @@ test('an idea can be finalized after its completed creation left the active list
  c.handlers.change({target:{matches:selector=>selector==='[data-idea-status]',dataset:{ideaStatus:'0'},value:'Finalizada'},stopImmediatePropagation(){}});
  assert.equal(c.run('draft.abilities.length'),1);assert.equal(c.run('draft.ideas.length'),0);
 });
-test('a completed learning slot is available before finalization',()=>{
+test('any visible creation keeps the learning slot blocked',()=>{
  const c=context({ideas:[{id:'a',name:'A',status:'Aprovada'}],creations:[{name:'B',requirement:40,current:0}]});
- assert.equal(c.run('learningOccupied(draft.ideas[0])'),false);
+ assert.equal(c.run('learningOccupied(draft.ideas[0])'),true);
 });
 test('developing idea without a creation does not occupy the slot and can be selected',()=>{
  const c=context({ideas:[{id:'a',name:'Rastro marcado',status:'Em desenvolvimento',initialRequirement:40}],creations:[]});

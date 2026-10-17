@@ -24,7 +24,7 @@ module.exports=function installOnline({ipcMain,net,dialog,shell,DATA_ROOT,MEDIA_
   stop(sessions.get(event.sender.id));sessions.delete(event.sender.id);
   const client=new OnlineClient({fetch:(...args)=>net.fetch(...args)});await client.login(data);
   const preferenceFile=path.join(DATA_ROOT,`appearance-${client.user.id}.json`);let appearance={};try{appearance=JSON.parse(fs.readFileSync(preferenceFile,'utf8'))}catch{}
-  appearance=client.user.appearance||appearance;const s={client,sender:event.sender,preferenceFile,appearance};sessions.set(event.sender.id,s);
+  appearance={...appearance,...(client.user.appearance||{})};const s={client,sender:event.sender,preferenceFile,appearance};sessions.set(event.sender.id,s);
   event.sender.once('destroyed',()=>{stop(s);sessions.delete(event.sender.id)});
   connect(s);
   s.timer=setInterval(async()=>{if(s.polling||s.closed)return;s.polling=true;try{const latest=await client.load();const signature=JSON.stringify([latest.characters,latest.settings,latest.users]);if(s.signature&&signature!==s.signature)notify(s);s.signature=signature}catch(error){if(!s.sender.isDestroyed())s.sender.send('online:status',{connected:false,message:error.message})}finally{s.polling=false}},5000);
@@ -33,7 +33,7 @@ module.exports=function installOnline({ipcMain,net,dialog,shell,DATA_ROOT,MEDIA_
  handle('auth:logout',event=>{stop(sessions.get(event.sender.id));sessions.delete(event.sender.id);return true});
  handle('auth:change-password',(event,data)=>session(event).client.request('/me/password','PUT',data));
  function saveAppearance(s,user=s.client.user){s.appearance=user.appearance||{};fs.mkdirSync(DATA_ROOT,{recursive:true});fs.writeFileSync(s.preferenceFile,JSON.stringify(s.appearance));return {...user,appearance:s.appearance}}
- handle('auth:update-appearance',async(event,data)=>{const s=session(event),user=await s.client.updateAppearance(data);return saveAppearance(s,user)});
+ handle('auth:update-appearance',async(event,data)=>{const s=session(event),user=await s.client.updateAppearance(data);user.appearance={...data,...(user.appearance||{})};return saveAppearance(s,user)});
  handle('auth:choose-background',async event=>{const s=session(event),chosen=await dialog.showOpenDialog({properties:['openFile'],filters:[{name:'Imagem',extensions:['png','jpg','jpeg','webp','gif']}]});if(chosen.canceled)return null;const source=chosen.filePaths[0],mime=mimeOf(source);if(!mime)throw new Error('Formato de imagem não permitido.');const user=await s.client.uploadBackground(fs.readFileSync(source),mime);return saveAppearance(s,user)});
  handle('auth:remove-background',async event=>{const s=session(event),user=await s.client.removeBackground();return saveAppearance(s,user)});
  handle('db:load',event=>load(session(event)));

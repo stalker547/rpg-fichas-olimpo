@@ -1,5 +1,8 @@
 // Shared rules: used by the renderer and copied to the API on deployment.
 (function(root){
+ function abilityMaxLevel(type){return type==='passive'?5:type==='active'||!type?10:null}
+ function abilityUseGoal(level){return 20+Math.max(1,Number(level)||1)*5}
+ function abilityAtMax(ability){const maximum=abilityMaxLevel(ability?.type);return maximum!==null&&Math.max(1,Number(ability?.level)||1)>=maximum}
  function applyProgression(character){
   if(!character)return false;let changed=false;
   character.creations||=[];character.ideas||=[];
@@ -22,11 +25,16 @@
   }
   if(completedQuests.length)character.quests=character.quests.filter(q=>!completedQuests.includes(q));
   for(const ability of character.abilities||[]){
-   const goal=Math.max(1,Number(ability.useGoal)||25),current=Math.max(0,Number(ability.useCurrent)||0);
-   if(current>=goal){ability.level=Math.max(1,Number(ability.level)||1)+Math.floor(current/goal);ability.useCurrent=current%goal;ability.useGoal=goal;changed=true}
+   const maximum=abilityMaxLevel(ability.type);
+   if(maximum===null){const goal=Math.max(1,Number(ability.useGoal)||25),current=Math.max(0,Number(ability.useCurrent)||0);if(current>=goal){ability.level=Math.max(1,Number(ability.level)||1)+Math.floor(current/goal);ability.useCurrent=current%goal;ability.useGoal=goal;changed=true}continue}
+   let level=Math.min(maximum,Math.max(1,Number(ability.level)||1)),current=Math.max(0,Number(ability.useCurrent)||0),goal=abilityUseGoal(level);
+   if(level!==Number(ability.level)||Number(ability.useGoal)!==goal){ability.level=level;ability.useGoal=goal;changed=true}
+   while(level<maximum&&current>=goal){current-=goal;level+=1;goal=abilityUseGoal(level);changed=true}
+   if(level>=maximum&&current!==0){current=0;changed=true}
+   ability.level=level;ability.useCurrent=current;ability.useGoal=goal;
   }
   return changed;
  }
- root.RpgProgression={applyProgression};
+ root.RpgProgression={applyProgression,abilityMaxLevel,abilityUseGoal,abilityAtMax};
  if(typeof module!=='undefined'&&module.exports)module.exports=root.RpgProgression;
 })(globalThis);

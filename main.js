@@ -136,6 +136,7 @@ function readDb() {
     if (!Number.isFinite(Number(character.pointPools.attributes))) { character.pointPools.attributes = 0; cleaned = true; }
     if (!Number.isFinite(Number(character.pointPools.skills))) { character.pointPools.skills = 0; cleaned = true; }
     if (!Array.isArray(character.abilities)) { character.abilities = []; cleaned = true; }
+    if (!Array.isArray(character.rollHistory)) { character.rollHistory = []; cleaned = true; }
     if (!Array.isArray(character.quests)) { character.quests = []; cleaned = true; }
     for (const quest of character.quests) {
       if(!Number.isFinite(Number(quest.failureCount))){quest.failureCount=0;cleaned=true;}
@@ -159,7 +160,7 @@ function readDb() {
         creation.progressMode = 'countdown'; creation.initialized = true; cleaned = true;
       }
     }
-    if (!character.backpack) { character.backpack = { petFood:0, travelMeals:0, jobs:[], items:Array(10).fill('') }; cleaned = true; }
+    if (!character.backpack) { character.backpack = { petFood:0, specialPetFood:0, travelMeals:0, premiumTravelMeals:0, jobs:[], items:Array(10).fill('') }; cleaned = true; }
     if (!Array.isArray(character.receptacles)) {
       character.receptacles = [];
       for (const line of String(character.inventory || '').split(/\r?\n/)) {
@@ -190,6 +191,8 @@ function readDb() {
     }
     character.backpack.jobs ||= [];
     character.backpack.items ||= Array(10).fill('');
+    if (!Number.isFinite(Number(character.backpack.specialPetFood))) { character.backpack.specialPetFood = 0; cleaned = true; }
+    if (!Number.isFinite(Number(character.backpack.premiumTravelMeals))) { character.backpack.premiumTravelMeals = 0; cleaned = true; }
     while (character.backpack.items.length < 10) character.backpack.items.push('');
     if (String(character.name).toLocaleLowerCase('pt-BR') === 'thales' && !character.creationSeeded) {
       if (!character.creations.length) character.creations.push({ type:'Aprendizado', name:'Rastro marcado', current:40, requirement:40, progressMode:'countdown', initialized:true });
@@ -372,8 +375,9 @@ ipcMain.handle('auth:login', (event, data) => {
 ipcMain.handle('auth:logout', event => { sessions.delete(event.sender.id);return true; });
 ipcMain.handle('auth:change-password', (event, data) => {const db=readDb(),user=sessionUser(event,db),current=String(data?.currentPassword||''),next=String(data?.newPassword||'');if(!passwordMatches(current,user))throw new Error('A senha atual está incorreta.');if(next.length<4)throw new Error('A nova senha precisa ter pelo menos 4 caracteres.');const record=passwordRecord(next);user.passwordSalt=record.salt;user.passwordHash=record.hash;writeDb(db);return true;});
 ipcMain.handle('auth:update-appearance', (event, appearance) => {
-  const db=readDb(),user=sessionUser(event,db),allowed=['bg','panel','sidebar','accent','text','muted'],next={...(user.appearance||{})};
-  for(const key of allowed){const value=String(appearance?.[key]||'');if(!/^#[0-9a-f]{6}$/i.test(value))throw new Error('Cor de aparência inválida.');next[key]=value;}
+  const db=readDb(),user=sessionUser(event,db),colors=['bg','bg2','panel','panel2','sidebar','input','line','accent','accent2','text','muted','gold','danger','toast','toastError','dirtyBar'],next={...(user.appearance||{})};
+  for(const key of colors){const value=String(appearance?.[key]||'');if(!/^#[0-9a-f]{6}$/i.test(value))throw new Error('Cor de aparência inválida.');next[key]=value;}
+  next.gradientEnabled=Boolean(appearance?.gradientEnabled);next.gradientAngle=['45deg','90deg','135deg','180deg'].includes(appearance?.gradientAngle)?appearance.gradientAngle:'135deg';
   user.appearance=next;writeDb(db);return publicUser(user);
 });
 ipcMain.handle('auth:choose-background', async event => {

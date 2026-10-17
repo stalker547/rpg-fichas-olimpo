@@ -142,3 +142,11 @@ test('atualiza os saldos de pontos somente quando informados no TXT', () => {
   assert.deepEqual(updated.pointPools, {attributes:4,skills:7});
   assert.deepEqual(apply(updated, parse('Nível: 3')).pointPools, {attributes:4,skills:7});
 });
+
+test('importa refeição de viagem premium separadamente', () => {
+  const parsed = parse('Mochila!\nOuro: 8\nRefeição de viagem: 2\nRefeição de viagem premium: 3');
+  const updated = apply({profile:{coins:1},backpack:{travelMeals:7,premiumTravelMeals:0},attributes:{},skills:[],learning:[],quests:[],gods:{}}, parsed);
+  assert.equal(updated.profile.coins, 8);
+  assert.equal(updated.backpack.travelMeals, 2);
+  assert.equal(updated.backpack.premiumTravelMeals, 3);
+});

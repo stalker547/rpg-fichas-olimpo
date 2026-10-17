@@ -6,4 +6,5 @@ function roll(outcome,remaining=27){
 }
 test('creation success reduces remaining by two',()=>assert.equal(roll('success'),25));
 test('creation failure reduces remaining by one',()=>assert.equal(roll('failure'),26));
+test('creation critical on natural 100 reduces remaining by three',()=>assert.equal(roll('critical'),24));
 test('creation progress cannot go below zero',()=>assert.equal(roll('success',1),0));

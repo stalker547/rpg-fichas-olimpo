@@ -20,11 +20,11 @@
   };
   const sectionNames = {
     atributos:'attributes', pericias:'skills', perícias:'skills', 'perícias em quest':'questSkills', 'pericias em quest':'questSkills',
-    quest:'questProgress', 'criação de habilidade':'creation', 'criacao de habilidade':'creation', 'corrente de receptáculos':'inventory', 'caixa de receptáculos':'inventory', deuses:'gods'
+    quest:'questProgress', 'criação de habilidade':'creation', 'criacao de habilidade':'creation', mochila:'backpack', 'mochila!':'backpack', 'corrente de receptáculos':'inventory', 'caixa de receptáculos':'inventory', deuses:'gods'
   };
   function setNested(target, path, value) { let o=target;path.slice(0,-1).forEach(k=>o=o[k]||(o[k]={}));o[path.at(-1)]=value; }
   function parse(text) {
-    const result={profile:{},pointPools:{},attributes:{},skills:[],learning:[],quests:[],creations:[],ideas:[],gods:{},inventoryParts:[],recognized:[]};
+    const result={profile:{},pointPools:{},attributes:{},skills:[],learning:[],quests:[],creations:[],ideas:[],gods:{},backpack:{},inventoryParts:[],recognized:[]};
     const lines=String(text||'').replace(/\r/g,'').split('\n').map(clean);
     let section='', lastQuest='',currentCreation=null,creationType='Aprendizado';
     for (const raw of lines) {
@@ -75,6 +75,10 @@
       if(section==='gods'){
         const god=raw.match(/^(.*?)\s*-\s*(-?\d+)$/);if(god){result.gods[god[1].trim()]=num(god[2]);continue;}
       }
+      if(section==='backpack' && colon){
+        const resources={ouro:['profile','coins'],'ração de pet':['backpack','petFood'],'racao de pet':['backpack','petFood'],'ração especial':['backpack','specialPetFood'],'racao especial':['backpack','specialPetFood'],'refeição de viagem':['backpack','travelMeals'],'refeicao de viagem':['backpack','travelMeals'],'refeição de viagem premium':['backpack','premiumTravelMeals'],'refeicao de viagem premium':['backpack','premiumTravelMeals']};
+        const path=resources[colon[1].trim().toLocaleLowerCase('pt-BR')];if(path){setNested(result,path,Math.max(0,num(colon[2])));continue;}
+      }
       if(section==='inventory') result.inventoryParts.push(raw);
     }
     result.inventory=result.inventoryParts.join('\n');delete result.inventoryParts;
@@ -94,6 +98,7 @@
     if(parsed.quests.length)out.quests=canonicalSkills(parsed.quests,existingNames);
     if(parsed.creations?.length){out.creations||=[];out.ideas||=[];for(const parsedCreation of parsed.creations){let creation=out.creations.find(item=>skillKey(item.name)===skillKey(parsedCreation.name)),idea=out.ideas.find(item=>skillKey(item.name)===skillKey(parsedCreation.name));if(!idea){idea={...(parsed.ideas||[]).find(item=>skillKey(item.name)===skillKey(parsedCreation.name))};out.ideas.push(idea)}idea.id||=parsedCreation.ideaId;idea.name=parsedCreation.name;idea.status='Em desenvolvimento';idea.initialRequirement=parsedCreation.requirement;idea.approvedFromImport=true;if(!creation){creation={...parsedCreation};out.creations.push(creation)}else{creation.type='Criação de habilidade';creation.current=parsedCreation.current;creation.requirement=parsedCreation.requirement;creation.progressMode='countdown';creation.initialized=true}creation.ideaId=idea.id}}
     if(Object.keys(parsed.gods).length)out.gods=parsed.gods;
+    if(Object.keys(parsed.backpack||{}).length)out.backpack={...(out.backpack||{}),...parsed.backpack};
     if(parsed.inventory)out.inventory=parsed.inventory;
     return out;
   }
