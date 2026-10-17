@@ -328,7 +328,7 @@ function startAutoUpdater(win) {
   autoUpdater.on('update-available',()=>{if(!manualUpdateRequested)autoUpdater.downloadUpdate().catch(error=>console.error('Falha ao baixar atualização:',error.message))});
   autoUpdater.on('download-progress', progress => {if(manualUpdateRequested&&!win.isDestroyed())win.webContents.send('app:update-status',{stage:'downloading',percent:Math.max(0,Math.min(100,Math.round(progress.percent||0))),bytesPerSecond:Number(progress.bytesPerSecond)||0,transferred:Number(progress.transferred)||0,total:Number(progress.total)||0})});
   autoUpdater.on('update-downloaded', async info => {
-    if(manualUpdateRequested){manualUpdateRequested=false;if(!win.isDestroyed())win.webContents.send('app:update-status',{stage:'installing',percent:100});setTimeout(()=>autoUpdater.quitAndInstall(false,true),900);return}
+    if(manualUpdateRequested){manualUpdateRequested=false;if(!win.isDestroyed())win.webContents.send('app:update-status',{stage:'installing',percent:100});setTimeout(()=>autoUpdater.quitAndInstall(true,true),900);return}
     const result = await dialog.showMessageBox(win, {
       type: 'info',
       title: 'Atualização pronta',
@@ -339,7 +339,7 @@ function startAutoUpdater(win) {
       cancelId: 1,
       noLink: true
     });
-    if (result.response === 0) autoUpdater.quitAndInstall(false, true);
+    if (result.response === 0) autoUpdater.quitAndInstall(true, true);
   });
   autoUpdater.on('error', error => {console.error('Falha ao procurar atualização:', error.message);if(manualUpdateRequested&&!manualUpdateErrorReported&&!win.isDestroyed()){manualUpdateErrorReported=true;win.webContents.send('app:update-status',{stage:'error',message:'O download perdeu a conexão. Tente novamente.'})}manualUpdateRequested=false});
   const check = () => autoUpdater.checkForUpdates().catch(error => console.error('Falha ao consultar atualização:', error.message));
