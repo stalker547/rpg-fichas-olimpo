@@ -5,7 +5,7 @@ const vm=require('node:vm');
 const path=require('node:path');
 
 function register(result,draft,selected){
- const sandbox={draft,n:value=>Number(value)||0,$:()=>({value:result}),currentRoll:()=>({selected,modifier:0}),rollProgressType:'skill',markDirty(){},toast(){},render(){},uid:()=>`id-${Math.random()}`,normalizeName:value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'')};
+ const sandbox={draft,n:value=>Number(value)||0,$:selector=>({value:selector==='#roll-outcome-value'?(result>=50?'success':'failure'):result}),currentRoll:()=>({selected,effects:[],modifier:0}),rollProgressType:'skill',markDirty(){},toast(){},render(){},uid:()=>`id-${Math.random()}`,normalizeName:value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'')};
  vm.createContext(sandbox);
  const source=fs.readFileSync(path.join(__dirname,'../src/app.js'),'utf8'),start=source.indexOf('function registerRollResult(){'),end=source.indexOf('\nfunction ',start+1);
  vm.runInContext(source.slice(start,end)+'\nregisterRollResult()',sandbox);
