@@ -322,9 +322,11 @@ function createWindow() {
 
 function startAutoUpdater(win) {
   if (!app.isPackaged) return;
-  autoUpdater.autoDownload = true;
+  autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.on('download-progress', progress => {if(manualUpdateRequested&&!win.isDestroyed())win.webContents.send('app:update-status',{stage:'downloading',percent:Math.max(0,Math.min(100,Math.round(progress.percent||0)))})});
+  autoUpdater.disableDifferentialDownload = false;
+  autoUpdater.on('update-available',()=>{if(!manualUpdateRequested)autoUpdater.downloadUpdate().catch(error=>console.error('Falha ao baixar atualização:',error.message))});
+  autoUpdater.on('download-progress', progress => {if(manualUpdateRequested&&!win.isDestroyed())win.webContents.send('app:update-status',{stage:'downloading',percent:Math.max(0,Math.min(100,Math.round(progress.percent||0))),bytesPerSecond:Number(progress.bytesPerSecond)||0,transferred:Number(progress.transferred)||0,total:Number(progress.total)||0})});
   autoUpdater.on('update-downloaded', async info => {
     if(manualUpdateRequested){manualUpdateRequested=false;if(!win.isDestroyed())win.webContents.send('app:update-status',{stage:'installing',percent:100});setTimeout(()=>autoUpdater.quitAndInstall(false,true),900);return}
     const result = await dialog.showMessageBox(win, {
@@ -339,7 +341,7 @@ function startAutoUpdater(win) {
     });
     if (result.response === 0) autoUpdater.quitAndInstall(false, true);
   });
-  autoUpdater.on('error', error => console.error('Falha ao procurar atualização:', error.message));
+  autoUpdater.on('error', error => {console.error('Falha ao procurar atualização:', error.message);if(manualUpdateRequested&&!win.isDestroyed())win.webContents.send('app:update-status',{stage:'error',message:'O download perdeu a conexão. Tente novamente.'});manualUpdateRequested=false});
   const check = () => autoUpdater.checkForUpdates().catch(error => console.error('Falha ao consultar atualização:', error.message));
   setTimeout(check, 10000);
   setInterval(check, 30 * 60 * 1000);
@@ -354,7 +356,7 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('before-quit', () => storage.close());
 
-ipcMain.handle('app:check-updates',async()=>{if(!app.isPackaged){setTimeout(()=>{app.relaunch({args:process.argv.slice(1)});app.exit(0)},900);return {status:'restarting',message:'Reabrindo o aplicativo local...'}}try{manualUpdateRequested=true;const result=await autoUpdater.checkForUpdates(),version=result?.updateInfo?.version;if(!version||version===app.getVersion()){manualUpdateRequested=false;return {status:'current',message:'Você já está usando a versão mais recente.'}}return {status:'downloading',version,message:`Baixando a versão ${version}. Quando terminar, o aplicativo instalará e abrirá novamente sozinho.`}}catch(error){manualUpdateRequested=false;throw new Error(`Não foi possível verificar atualizações: ${error.message}`)}});
+ipcMain.handle('app:check-updates',async event=>{if(!app.isPackaged){setTimeout(()=>{app.relaunch({args:process.argv.slice(1)});app.exit(0)},900);return {status:'restarting',message:'Reabrindo o aplicativo local...'}}try{manualUpdateRequested=true;event.sender.send('app:update-status',{stage:'connecting',percent:0});const result=await autoUpdater.checkForUpdates(),version=result?.updateInfo?.version;if(!version||version===app.getVersion()){manualUpdateRequested=false;return {status:'current',message:'Você já está usando a versão mais recente.'}}autoUpdater.downloadUpdate().catch(error=>{if(!event.sender.isDestroyed())event.sender.send('app:update-status',{stage:'error',message:'Não foi possível concluir o download. Tente novamente.'});manualUpdateRequested=false;console.error('Falha ao baixar atualização:',error.message)});return {status:'downloading',version,message:`Baixando a versão ${version}. Quando terminar, o aplicativo instalará e abrirá novamente sozinho.`}}catch(error){manualUpdateRequested=false;throw new Error(`Não foi possível verificar atualizações: ${error.message}`)}});
 ipcMain.handle('auth:remembered-login',()=>loadRememberedCredentials());
 ipcMain.handle('auth:save-remembered-login',(event,data)=>saveRememberedCredentials(data));
 
