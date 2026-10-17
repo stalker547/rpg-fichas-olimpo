@@ -1,6 +1,6 @@
 {
   "name": "rpg-fichas",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "Gerenciador local de fichas de RPG",
   "main": "main.js",
   "author": "Sergio",
