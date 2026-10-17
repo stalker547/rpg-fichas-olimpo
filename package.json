@@ -1,6 +1,6 @@
 {
   "name": "rpg-fichas",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "Gerenciador local de fichas de RPG",
   "main": "main.js",
   "author": "Sergio",
@@ -54,8 +54,10 @@
       "artifactName": "RPG Fichas Setup ${version}.exe"
     },
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": true,
+      "runAfterFinish": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "RPG Fichas"

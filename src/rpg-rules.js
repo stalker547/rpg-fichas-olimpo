@@ -22,7 +22,8 @@
  }
  function effects(item){return item.effects?.length?item.effects:[{attribute:item.attribute,targetType:item.targetType||'attribute',bonus:number(item.bonus)}]}
  const normalize=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
- function attributeBonus(character,name){return (character.receptacles||[]).filter(item=>item.equipped).flatMap(effects).filter(effect=>effect.targetType!=='god'&&normalize(effect.attribute)===normalize(name)).reduce((sum,effect)=>sum+number(effect.bonus),0)}
+ function attributeBonus(character,name){return (character.receptacles||[]).filter(item=>item.equipped).flatMap(effects).filter(effect=>(effect.targetType||'attribute')==='attribute'&&normalize(effect.attribute)===normalize(name)).reduce((sum,effect)=>sum+number(effect.bonus),0)}
+ function skillBonus(character,name){return (character.receptacles||[]).filter(item=>item.equipped).flatMap(effects).filter(effect=>effect.targetType==='skill'&&normalize(effect.attribute)===normalize(name)).reduce((sum,effect)=>sum+number(effect.bonus),0)}
  function capacities(character){const items=(character.receptacles||[]).filter(i=>i.containerType!=='custom'),equipped=items.filter(i=>i.equipped).length,stored=items.length-equipped;return {chain:character.receptacleCapacity?.chain|| (equipped>5?15:5),box:character.receptacleCapacity?.box||(stored>5?20:5)}}
  function validateEquipment(character){
   const items=(character.receptacles||[]).filter(i=>i.containerType!=='custom'),limits=capacities(character);
@@ -30,6 +31,6 @@
   if(items.filter(i=>!i.equipped).length>limits.box)return 'A caixa não possui espaço disponível.';
   return '';
  }
- const rules={skillPointCost,purchaseAttribute,purchaseSkillLevel,addPaidSkill,advanceSkill,advanceQuest,rarityBonus,attributeBonus,capacities,validateEquipment};
+ const rules={skillPointCost,purchaseAttribute,purchaseSkillLevel,addPaidSkill,advanceSkill,advanceQuest,rarityBonus,attributeBonus,skillBonus,capacities,validateEquipment};
  root.RpgRules=rules;if(typeof module!=='undefined'&&module.exports)module.exports=rules;
 })(globalThis);

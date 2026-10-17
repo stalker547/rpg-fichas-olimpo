@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, safeStorage } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const path = require('path');
@@ -14,6 +14,17 @@ const SQLITE_FILE = path.join(DATA_ROOT, 'rpg-fichas.db');
 const MEDIA_ROOT = path.join(DATA_ROOT, 'midia');
 const storage = new SqliteStorage(SQLITE_FILE, LEGACY_DB_FILE, path.join(APP_ROOT, 'assets', 'initial-data.json'));
 const sessions = new Map();
+let manualUpdateRequested = false;
+
+function credentialsFile(){return path.join(app.getPath('userData'),'remembered-login.json')}
+function loadRememberedCredentials(){
+ try{const saved=JSON.parse(fs.readFileSync(credentialsFile(),'utf8'));if(!saved.username||!saved.password||!safeStorage.isEncryptionAvailable())return {username:saved.username||'',password:'',remember:false};return {username:saved.username,password:safeStorage.decryptString(Buffer.from(saved.password,'base64')),remember:true}}catch{return {username:'',password:'',remember:false}}
+}
+function saveRememberedCredentials(data){
+ const file=credentialsFile();if(!data?.remember){try{fs.unlinkSync(file)}catch{}return true}
+ if(!safeStorage.isEncryptionAvailable())throw new Error('O armazenamento seguro de senhas não está disponível neste Windows.');
+ fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,JSON.stringify({username:String(data.username||'').trim(),password:safeStorage.encryptString(String(data.password||'')).toString('base64')}),'utf8');return true;
+}
 
 function normalizeUsername(value) { return String(value || '').trim().toLocaleLowerCase('pt-BR'); }
 function passwordRecord(password, salt = crypto.randomBytes(16).toString('hex')) {
@@ -310,7 +321,9 @@ function startAutoUpdater(win) {
   if (!app.isPackaged) return;
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on('download-progress', progress => {if(manualUpdateRequested&&!win.isDestroyed())win.webContents.send('app:update-status',{stage:'downloading',percent:Math.max(0,Math.min(100,Math.round(progress.percent||0)))})});
   autoUpdater.on('update-downloaded', async info => {
+    if(manualUpdateRequested){manualUpdateRequested=false;if(!win.isDestroyed())win.webContents.send('app:update-status',{stage:'installing',percent:100});setTimeout(()=>autoUpdater.quitAndInstall(false,true),900);return}
     const result = await dialog.showMessageBox(win, {
       type: 'info',
       title: 'Atualização pronta',
@@ -338,7 +351,9 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('before-quit', () => storage.close());
 
-ipcMain.handle('app:check-updates',async()=>{if(!app.isPackaged)return {status:'development',message:'A verificação automática funciona no aplicativo instalado.'};try{const result=await autoUpdater.checkForUpdates();return {status:'checking',message:result?.updateInfo?.version?`Versão disponível consultada: ${result.updateInfo.version}.`:'Verificação iniciada.'}}catch(error){throw new Error(`Não foi possível verificar atualizações: ${error.message}`)}});
+ipcMain.handle('app:check-updates',async()=>{if(!app.isPackaged){setTimeout(()=>{app.relaunch({args:process.argv.slice(1)});app.exit(0)},900);return {status:'restarting',message:'Reabrindo o aplicativo local...'}}try{manualUpdateRequested=true;const result=await autoUpdater.checkForUpdates(),version=result?.updateInfo?.version;if(!version||version===app.getVersion()){manualUpdateRequested=false;return {status:'current',message:'Você já está usando a versão mais recente.'}}return {status:'downloading',version,message:`Baixando a versão ${version}. Quando terminar, o aplicativo instalará e abrirá novamente sozinho.`}}catch(error){manualUpdateRequested=false;throw new Error(`Não foi possível verificar atualizações: ${error.message}`)}});
+ipcMain.handle('auth:remembered-login',()=>loadRememberedCredentials());
+ipcMain.handle('auth:save-remembered-login',(event,data)=>saveRememberedCredentials(data));
 
 ipcMain.handle('auth:status', () => ({ hasUsers:(readDb().settings.authUsers||[]).length>0 }));
 ipcMain.handle('auth:setup', (event, data) => {
@@ -398,6 +413,12 @@ ipcMain.handle('db:update-attributes', (event, names) => {
     character.updatedAt=new Date().toISOString();
   }
   db.settings.attributeNames=next;writeDb(db);return visibleDb(db,admin);
+});
+ipcMain.handle('db:update-skill-catalog', (event, skills) => {
+  const db=readDb();sessionUser(event,db,true);
+  const next=(Array.isArray(skills)?skills:[]).map(skill=>({name:String(skill.name||'').trim(),category:String(skill.category||'Outras').trim()||'Outras',description:String(skill.description||'').trim()})).filter(skill=>skill.name);
+  if(new Set(next.map(skill=>normalizeUsername(skill.name))).size!==next.length)throw new Error('Não pode haver perícias repetidas.');
+  db.settings.customSkillCatalog=next;writeDb(db);return visibleDb(db,sessionUser(event,db,true));
 });
 ipcMain.handle('db:save-character', (event, character, settings) => {
   const db = readDb();

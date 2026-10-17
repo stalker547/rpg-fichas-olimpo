@@ -29,6 +29,10 @@ test('equipment respects capacity without limiting attribute totals',()=>{
  c.receptacles=[...Array.from({length:5},()=>({equipped:true})),...Array.from({length:8},()=>({containerType:'custom',equipped:true}))];assert.equal(rules.validateEquipment(c),'');
  c.receptacles=[...Array.from({length:5},()=>({equipped:false})),...Array.from({length:8},()=>({containerType:'custom',equipped:false}))];assert.equal(rules.validateEquipment(c),'');
 });
+test('equipped receptacle adds bonus only to its matching skill',()=>{
+ const c={receptacles:[{equipped:true,effects:[{attribute:'Audição',targetType:'skill',bonus:5}]},{equipped:false,effects:[{attribute:'Visão',targetType:'skill',bonus:5}]}]};
+ assert.equal(rules.skillBonus(c,'Audição'),5);assert.equal(rules.skillBonus(c,'audição'),5);assert.equal(rules.skillBonus(c,'Visão'),0);assert.equal(rules.skillBonus(c,'Olfato'),0);
+});
 test('new skill requires and spends exactly three points',()=>{
  const c={skills:[],pointPools:{skills:2}};assert.throws(()=>rules.addPaidSkill(c,'test'),/3 pontos/);assert.equal(c.skills.length,0);assert.equal(c.pointPools.skills,2);
  c.pointPools.skills=3;rules.addPaidSkill(c,'test');assert.equal(c.skills[0].value,1);assert.equal(c.skills[0].id,'test');assert.equal(c.pointPools.skills,0);
