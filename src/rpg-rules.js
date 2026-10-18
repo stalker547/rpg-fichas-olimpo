@@ -15,9 +15,9 @@
  function advanceQuest(quest,success,authorized=false){
   const tier=Math.max(10,number(quest.value)||10);if(tier>=40&&!authorized&&success)return 0;
   const before=number(quest.current),goal=number(quest.goal);let amount=0;
-  if(tier<10)amount=success?2:1;
-  else if(success){const needed=Math.max(1,Math.floor(tier/10));quest.successCount=number(quest.successCount)+1;if(quest.successCount>=needed){amount=1;quest.successCount=0}}
-  else{const needed=Math.floor(tier/10)+1;quest.failureCount=number(quest.failureCount)+1;if(quest.failureCount>=needed){amount=1;quest.failureCount=0}}
+  if(tier<20)amount=success?2:1;
+  else if(success){const needed=Math.max(1,Math.floor(tier/10)-1);quest.successCount=number(quest.successCount)+1;if(quest.successCount>=needed){amount=1;quest.successCount=0}}
+  else{const needed=Math.max(2,Math.floor(tier/10));quest.failureCount=number(quest.failureCount)+1;if(quest.failureCount>=needed){amount=1;quest.failureCount=0}}
   quest.current=goal>0?Math.min(goal,before+amount):before+amount;return quest.current-before;
  }
  function effects(item){return item.effects?.length?item.effects:[{attribute:item.attribute,targetType:item.targetType||'attribute',bonus:number(item.bonus)}]}

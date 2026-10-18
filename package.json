@@ -43,6 +43,7 @@
       "node_modules/**/*"
     ],
     "win": {
+      "icon": "assets/app-icon.ico",
       "target": [
         {
           "target": "nsis",

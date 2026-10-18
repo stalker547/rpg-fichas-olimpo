@@ -93,6 +93,11 @@ test('usa o nome oficial e elimina perícias repetidas ao colar TXT', () => {
   assert.equal(updated.skills[0].value,6);
 });
 
+test('usa apenas o bônus geral quando o TXT traz bônus específicos', () => {
+  const parsed=parse('Perícias:\nAtletismo - 23 (+7 geral e corrida +3, +3 salto)');
+  assert.deepEqual(parsed.skills[0],{name:'Atletismo',value:23,bonus:7});
+});
+
 test('separa o bônus entre parênteses do valor-base do atributo', () => {
   const parsed = parse('Atributos:\nResistência: 3 (+1)\nInteligência: 8');
   assert.equal(parsed.attributes.Resistência, 2);

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, clipboard, nativeImage } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const path = require('path');
@@ -14,6 +14,9 @@ const SQLITE_FILE = path.join(DATA_ROOT, 'rpg-fichas.db');
 const MEDIA_ROOT = path.join(DATA_ROOT, 'midia');
 const storage = new SqliteStorage(SQLITE_FILE, LEGACY_DB_FILE, path.join(APP_ROOT, 'assets', 'initial-data.json'));
 const sessions = new Map();
+// O modo local existe apenas durante o desenvolvimento pelo TESTAR.bat.
+// Builds instaladas sempre usam a VPS, mesmo que recebam --local por engano.
+const LOCAL_MODE = !app.isPackaged && process.argv.includes('--local');
 let manualUpdateRequested = false, manualUpdateErrorReported = false;
 
 function credentialsFile(){return path.join(app.getPath('userData'),'remembered-login.json')}
@@ -312,7 +315,8 @@ function createWindow() {
     minWidth: 1050,
     minHeight: 680,
     backgroundColor: '#111813',
-    title: 'RPG Fichas',
+    title: LOCAL_MODE ? 'RPG Fichas — Modo local' : 'RPG Fichas',
+    icon: path.join(APP_ROOT, 'assets', 'app-icon.ico'),
     webPreferences: { preload: path.join(APP_ROOT, 'preload.js'), contextIsolation: true, nodeIntegration: false }
   });
   win.setMenuBarVisibility(false);
@@ -360,7 +364,7 @@ ipcMain.handle('app:check-updates',async event=>{if(!app.isPackaged){setTimeout(
 ipcMain.handle('auth:remembered-login',()=>loadRememberedCredentials());
 ipcMain.handle('auth:save-remembered-login',(event,data)=>saveRememberedCredentials(data));
 
-ipcMain.handle('auth:status', () => ({ hasUsers:(readDb().settings.authUsers||[]).length>0 }));
+ipcMain.handle('auth:status', () => ({ hasUsers:(readDb().settings.authUsers||[]).length>0, online:false, local:true }));
 ipcMain.handle('auth:setup', (event, data) => {
   const db=readDb();if((db.settings.authUsers||[]).length)throw new Error('A conta da mestre já foi criada.');
   const username=normalizeUsername(data.username),password=String(data.password||'');
@@ -501,6 +505,17 @@ ipcMain.handle('media:data-url', (event, filePath) => {
     return `data:image/${ext};base64,${fs.readFileSync(filePath).toString('base64')}`;
   } catch { return ''; }
 });
+ipcMain.handle('media:copy-image', (event, filePath) => {
+  const db=readDb(),user=sessionUser(event,db),resolved=path.resolve(filePath),mediaResolved=path.resolve(MEDIA_ROOT);
+  if(!resolved.startsWith(`${mediaResolved}${path.sep}`))throw new Error('Esta imagem não pertence à pasta do aplicativo.');
+  if(user.role!=='admin'){
+    const relative=path.relative(mediaResolved,resolved),folder=relative.split(path.sep)[0];
+    const allowed=(db.characters||[]).filter(character=>character.ownerUserId===user.id).some(character=>folder.startsWith(safeName(character.id)));
+    if(!allowed)throw new Error('Você não pode copiar imagens desta ficha.');
+  }
+  const image=nativeImage.createFromPath(resolved);if(image.isEmpty())throw new Error('Não foi possível ler esta imagem.');
+  clipboard.writeImage(image);return true;
+});
 ipcMain.handle('ocr:abilities', async (event, characterId) => {
   const db=readDb(),user=sessionUser(event,db);if(!ownedCharacterForKey(db,user,characterId))throw new Error('Você não pode alterar esta ficha.');
   const chosen = await dialog.showOpenDialog({ properties:['openFile'], filters:[{ name:'Imagem da tabela', extensions:['png','jpg','jpeg','webp','bmp'] }] });
@@ -531,5 +546,5 @@ ipcMain.handle('file:export-text', async (event, character, text, fileName) => {
   return true;
 });
 ipcMain.handle('data:open-folder', event => {const db=readDb();sessionUser(event,db,true);return shell.openPath(DATA_ROOT)});
-require('./online-main')({ipcMain,net:require('electron').net,dialog,shell,DATA_ROOT,MEDIA_ROOT,changesBetween,readAbilityTable,unpackedPath});
+if(!LOCAL_MODE)require('./online-main')({ipcMain,net:require('electron').net,dialog,shell,clipboard,nativeImage,DATA_ROOT,MEDIA_ROOT,changesBetween,readAbilityTable,unpackedPath});
 ipcMain.handle('ui:confirm-delete',async event=>{const result=await dialog.showMessageBox(BrowserWindow.fromWebContents(event.sender),{type:'question',title:'Excluir item',message:'Tem certeza que deseja excluir este item?',buttons:['Cancelar','Excluir'],defaultId:0,cancelId:0,noLink:true});return result.response===1});

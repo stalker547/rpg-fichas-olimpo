@@ -7,17 +7,17 @@ test('each skill band uses the required success and failure counts',()=>{
  for(const [level,successes,failures]of [[10,1,2],[20,2,3],[30,3,4],[40,4,5]])for(const [success,count]of [[true,successes],[false,failures]]){const s={value:level};for(let i=1;i<count;i++)assert.equal(rules.advanceSkill(s,success),0);assert.equal(rules.advanceSkill(s,success),1);assert.equal(s.value,level+1)}
  assert.equal(rules.advanceSkill({value:50},true),0);
 });
-test('quest 10 requires one success or two failures and quests 20/30 accumulate required successes',()=>{
- const level10Success={value:10,current:0,goal:10};assert.equal(rules.advanceQuest(level10Success,true),1);
- const level10Failure={value:10,current:0,goal:10};assert.equal(rules.advanceQuest(level10Failure,false),0);assert.equal(level10Failure.current,0);assert.equal(level10Failure.failureCount,1);assert.equal(rules.advanceQuest(level10Failure,false),1);assert.equal(level10Failure.current,1);
- for(const [value,required] of [[20,2],[30,3]]){const quest={value,current:0,goal:10};assert.equal(rules.advanceQuest(quest,false),0);for(let i=1;i<required;i++)assert.equal(rules.advanceQuest(quest,true),0);assert.equal(rules.advanceQuest(quest,true),1);assert.equal(quest.current,1);assert.equal(quest.successCount,0)}
- for(const [value,required] of [[40,4],[50,5]]){const quest={value,current:0,goal:10};assert.equal(rules.advanceQuest(quest,true),0);for(let i=1;i<required;i++)assert.equal(rules.advanceQuest(quest,true,true),0);assert.equal(rules.advanceQuest(quest,true,true),1)}
+test('quest 10 gains two on success and one on failure; later quests use counters',()=>{
+ const level10Success={value:10,current:0,goal:10};assert.equal(rules.advanceQuest(level10Success,true),2);assert.equal(level10Success.current,2);
+ const level10Failure={value:10,current:0,goal:10};assert.equal(rules.advanceQuest(level10Failure,false),1);assert.equal(level10Failure.current,1);
+ for(const [value,required] of [[20,1],[30,2]]){const quest={value,current:0,goal:10};for(let i=1;i<required;i++)assert.equal(rules.advanceQuest(quest,true),0);assert.equal(rules.advanceQuest(quest,true),1);assert.equal(quest.current,1);assert.equal(quest.successCount,0)}
+ for(const [value,required] of [[40,3],[50,4]]){const quest={value,current:0,goal:10};assert.equal(rules.advanceQuest(quest,true),0);for(let i=1;i<required;i++)assert.equal(rules.advanceQuest(quest,true,true),0);assert.equal(rules.advanceQuest(quest,true,true),1)}
 });
 test('quest accumulates failures automatically without visible configuration',()=>{
- for(const [value,required] of [[20,3],[30,4],[40,5]]){const quest={value,current:0,goal:10,failuresPerProgress:0};for(let i=1;i<required;i++)assert.equal(rules.advanceQuest(quest,false,true),0);assert.equal(rules.advanceQuest(quest,false,true),1);assert.equal(quest.current,1);assert.equal(quest.failureCount,0)}
+ for(const [value,required] of [[20,2],[30,3],[40,4],[50,5]]){const quest={value,current:0,goal:10,failuresPerProgress:0};for(let i=1;i<required;i++)assert.equal(rules.advanceQuest(quest,false,true),0);assert.equal(rules.advanceQuest(quest,false,true),1);assert.equal(quest.current,1);assert.equal(quest.failureCount,0)}
 });
 test('quest success and failure counters remain independent',()=>{
- const quest={value:20,current:0,goal:10};
+ const quest={value:30,current:0,goal:10};
  assert.equal(rules.advanceQuest(quest,true),0);assert.equal(quest.successCount,1);
  assert.equal(rules.advanceQuest(quest,false),0);assert.equal(rules.advanceQuest(quest,false),0);assert.equal(quest.failureCount,2);
  assert.equal(rules.advanceQuest(quest,true),1);assert.equal(quest.successCount,0);assert.equal(quest.failureCount,2);assert.equal(quest.current,1);

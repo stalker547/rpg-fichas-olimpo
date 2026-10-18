@@ -47,8 +47,8 @@
       if(section==='skills'){
         const learning=raw.match(/^(.*?)\s+aprendendo\s*\((\d+)\s*\/\s*(\d+)\)$/i);
         if(learning){result.learning.push({name:learning[1].trim(),current:num(learning[2]),goal:num(learning[3])});continue;}
-        const skill=raw.match(/^(.*?)\s*-\s*(-?\d+)(?:\s*\(\+?(-?\d+)\))?$/);
-        if(skill){result.skills.push({name:skill[1].trim(),value:num(skill[2]),bonus:num(skill[3])});continue;}
+        const skill=raw.match(/^(.*?)\s*-\s*(-?\d+)(?:\s*\(([^)]*)\))?$/);
+        if(skill){const generalBonus=String(skill[3]||'').match(/^\s*([+-]?\d+(?:[.,]\d+)?)/);result.skills.push({name:skill[1].trim(),value:num(skill[2]),bonus:num(generalBonus?.[1])});continue;}
       }
       if(section==='questSkills'){
         const q=raw.match(/^(.*?)\s*-\s*(-?\d+)(?:\s*\(\+?(-?\d+)\))?$/);if(q){result.quests.push({name:q[1].trim(),value:num(q[2]),bonus:q[3]===undefined?0:num(q[3]),current:0,goal:10,action:'use'});continue;}

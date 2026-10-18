@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('rpg', {
   saveNpc: npc => ipcRenderer.invoke('db:save-npc', npc),
   deleteNpc: id => ipcRenderer.invoke('db:delete-npc', id),
   chooseImages: characterId => ipcRenderer.invoke('media:choose', characterId),
+  copyImage: filePath => ipcRenderer.invoke('media:copy-image', filePath),
   readAbilityImage: characterId => ipcRenderer.invoke('ocr:abilities', characterId),
   imageDataUrl: filePath => ipcRenderer.invoke('media:data-url', filePath),
   exportText: (character, text, fileName) => ipcRenderer.invoke('file:export-text', character, text, fileName),
