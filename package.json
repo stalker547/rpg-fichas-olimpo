@@ -1,6 +1,6 @@
 {
   "name": "rpg-fichas",
-  "version": "1.0.16",
+  "version": "1.0.18",
   "description": "Gerenciador local de fichas de RPG",
   "main": "main.js",
   "author": "Sergio",
@@ -8,9 +8,13 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test",
-    "build": "electron-builder --win nsis"
+    "build": "electron-builder --win nsis",
+    "android:sync": "node scripts/prepare-android.cjs && cap sync android",
+    "android:apk": "npm run android:sync && cd android && gradlew.bat assembleRelease"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.3",
     "electron": "^37.2.6",
     "electron-builder": "^26.0.12"
   },
@@ -65,6 +69,14 @@
     }
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/browser": "^8.0.5",
+    "@capacitor/clipboard": "^8.0.1",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/share": "^8.0.3",
     "better-sqlite3": "^12.11.1",
     "electron-updater": "^6.8.9",
     "regenerator-runtime": "0.13.11",

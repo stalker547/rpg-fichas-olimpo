@@ -3,6 +3,18 @@
  function abilityMaxLevel(type){return type==='passive'?5:type==='active'||!type?10:null}
  function abilityUseGoal(level){return 20+Math.max(1,Number(level)||1)*5}
  function abilityAtMax(ability){const maximum=abilityMaxLevel(ability?.type);return maximum!==null&&Math.max(1,Number(ability?.level)||1)>=maximum}
+ function skillKey(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'')}
+ function startSkillQuests(character){
+  character.skills||=[];character.quests||=[];let changed=false;
+  for(let index=character.skills.length-1;index>=0;index--){
+   const skill=character.skills[index],value=Number(skill.value)||0;
+   if(![10,20,30,40,50].includes(value)||Number(skill.completedQuestTier)>=value)continue;
+   if(character.quests.some(quest=>skillKey(quest.name)===skillKey(skill.name)))continue;
+   character.quests.push({id:skill.id||`quest-${skillKey(skill.name)}-${value}`,name:skill.name||'Nova perícia',value,bonus:Number(skill.bonus)||0,current:Math.max(0,Number(skill.questEntryProgress)||0),goal:10,successCount:0,failureCount:0});
+   character.skills.splice(index,1);changed=true;
+  }
+  return changed;
+ }
  function applyProgression(character){
   if(!character)return false;let changed=false;
   character.creations||=[];character.ideas||=[];
@@ -17,13 +29,14 @@
   character.skills||=[];character.quests||=[];
   const completedQuests=character.quests.filter(q=>Number(q.goal)>0&&Number(q.current)>=Number(q.goal));
   for(const quest of completedQuests){
-   const key=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
-   const existing=character.skills.find(skill=>key(skill.name)===key(quest.name)),nextValue=Math.min(50,Math.max(1,Number(quest.value)||0)+1);
-   if(existing){existing.value=Math.max(Number(existing.value)||0,nextValue);existing.bonus=Math.max(Number(existing.bonus)||0,Number(quest.bonus)||0)}
-   else character.skills.push({id:quest.id||`quest-complete-${key(quest.name)}`,name:quest.name||'Nova perícia',value:nextValue,bonus:Number(quest.bonus)||0,successCount:0,failureCount:0});
+   const key=skillKey;
+   const existing=character.skills.find(skill=>key(skill.name)===key(quest.name)),nextValue=Math.min(50,Math.max(1,Number(quest.value)||0));
+   if(existing){existing.value=Math.max(Number(existing.value)||0,nextValue);existing.bonus=Math.max(Number(existing.bonus)||0,Number(quest.bonus)||0);existing.completedQuestTier=Math.max(Number(existing.completedQuestTier)||0,nextValue)}
+   else character.skills.push({id:quest.id||`quest-complete-${key(quest.name)}`,name:quest.name||'Nova perícia',value:nextValue,bonus:Number(quest.bonus)||0,successCount:0,failureCount:0,completedQuestTier:nextValue});
    changed=true;
   }
   if(completedQuests.length)character.quests=character.quests.filter(q=>!completedQuests.includes(q));
+  if(startSkillQuests(character))changed=true;
   for(const ability of character.abilities||[]){
    const maximum=abilityMaxLevel(ability.type);
    if(maximum===null){const goal=Math.max(1,Number(ability.useGoal)||25),current=Math.max(0,Number(ability.useCurrent)||0);if(current>=goal){ability.level=Math.max(1,Number(ability.level)||1)+Math.floor(current/goal);ability.useCurrent=current%goal;ability.useGoal=goal;changed=true}continue}
@@ -35,6 +48,6 @@
   }
   return changed;
  }
- root.RpgProgression={applyProgression,abilityMaxLevel,abilityUseGoal,abilityAtMax};
+ root.RpgProgression={applyProgression,startSkillQuests,abilityMaxLevel,abilityUseGoal,abilityAtMax};
  if(typeof module!=='undefined'&&module.exports)module.exports=root.RpgProgression;
 })(globalThis);

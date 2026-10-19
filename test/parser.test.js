@@ -155,3 +155,15 @@ test('importa refeição de viagem premium separadamente', () => {
   assert.equal(updated.backpack.travelMeals, 2);
   assert.equal(updated.backpack.premiumTravelMeals, 3);
 });
+
+test('importa moeda como recurso principal da mochila', () => {
+  const parsed = parse('Mochila!\nMoeda: 12');
+  const updated = apply({profile:{coins:0},backpack:{},attributes:{},skills:[],learning:[],quests:[],gods:{}}, parsed);
+  assert.equal(updated.profile.coins, 12);
+});
+
+test('importa os nomes fixos das rações', () => {
+  const parsed = parse('Mochila!\nRação de pet: 2\nRação de pet especial: 3\nRação de viagem: 4\nRação de viagem premium: 5');
+  const updated = apply({profile:{},backpack:{},attributes:{},skills:[],learning:[],quests:[],gods:{}}, parsed);
+  assert.deepEqual([updated.backpack.petFood,updated.backpack.specialPetFood,updated.backpack.travelMeals,updated.backpack.premiumTravelMeals],[2,3,4,5]);
+});

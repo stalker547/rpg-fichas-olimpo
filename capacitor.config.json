@@ -1,0 +1,13 @@
+{
+  "appId": "br.sergio.rpgfichas",
+  "appName": "RPG Fichas",
+  "webDir": "mobile-web",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

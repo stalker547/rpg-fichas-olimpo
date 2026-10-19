@@ -3,6 +3,7 @@ test('point costs are calculated per purchased level, including band crossings',
  assert.equal(rules.skillPointCost(9,10),1);assert.equal(rules.skillPointCost(10,11),2);assert.equal(rules.skillPointCost(19,21),5);assert.equal(rules.skillPointCost(29,30),3);assert.throws(()=>rules.skillPointCost(30,31),/somente|só/);
 });
 test('skills below 10 gain two on success and one on failure',()=>{const a={value:5},b={value:5};assert.equal(rules.advanceSkill(a,true),2);assert.equal(rules.advanceSkill(b,false),1)});
+test('incomplete opposite counter is preserved after gaining a skill level',()=>{const skill={value:20,successCount:1,failureCount:1};assert.equal(rules.advanceSkill(skill,true),1);assert.equal(skill.value,21);assert.equal(skill.successCount,0);assert.equal(skill.failureCount,1)});
 test('each skill band uses the required success and failure counts',()=>{
  for(const [level,successes,failures]of [[10,1,2],[20,2,3],[30,3,4],[40,4,5]])for(const [success,count]of [[true,successes],[false,failures]]){const s={value:level};for(let i=1;i<count;i++)assert.equal(rules.advanceSkill(s,success),0);assert.equal(rules.advanceSkill(s,success),1);assert.equal(s.value,level+1)}
  assert.equal(rules.advanceSkill({value:50},true),0);
@@ -36,6 +37,18 @@ test('equipped receptacle adds bonus only to its matching skill',()=>{
 test('new skill requires and spends exactly three points',()=>{
  const c={skills:[],pointPools:{skills:2}};assert.throws(()=>rules.addPaidSkill(c,'test'),/3 pontos/);assert.equal(c.skills.length,0);assert.equal(c.pointPools.skills,2);
  c.pointPools.skills=3;rules.addPaidSkill(c,'test');assert.equal(c.skills[0].value,1);assert.equal(c.skills[0].id,'test');assert.equal(c.pointPools.skills,0);
+});
+test('new skill unlock point takes priority over three regular skill points',()=>{
+ const c={skills:[],pointPools:{skills:3,newSkills:1}};
+ assert.equal(rules.addPaidSkill(c,'first'),1);
+ assert.equal(c.pointPools.newSkills,0);assert.equal(c.pointPools.skills,3);
+ assert.equal(rules.addPaidSkill(c,'second'),3);
+ assert.equal(c.pointPools.skills,0);assert.equal(c.skills.length,2);
+});
+test('new skill unlock points cannot increase an existing skill',()=>{
+ const c={skills:[{value:1}],pointPools:{skills:0,newSkills:1}};
+ assert.throws(()=>rules.purchaseSkillLevel(c,0),/pontos de perícia/);
+ assert.equal(c.pointPools.newSkills,1);assert.equal(c.skills[0].value,1);
 });
 test('increase button charges each skill band and cannot purchase above 30',()=>{
  for(const [level,cost]of [[9,1],[10,2],[20,3]]){const c={skills:[{value:level}],pointPools:{skills:cost}};assert.equal(rules.purchaseSkillLevel(c,0),cost);assert.equal(c.skills[0].value,level+1);assert.equal(c.pointPools.skills,0)}

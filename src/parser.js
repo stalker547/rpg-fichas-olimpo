@@ -16,7 +16,8 @@
     'bônus divino': ['profile','divineBonus'], 'bonus divino': ['profile','divineBonus'],
     'pontos de atributos para gastar': ['pointPools','attributes'], 'pontos para gastar em atributos': ['pointPools','attributes'],
     'pontos de perícias para gastar': ['pointPools','skills'], 'pontos de pericias para gastar': ['pointPools','skills'],
-    'pontos para gastar em perícias': ['pointPools','skills'], 'pontos para gastar em pericias': ['pointPools','skills']
+    'pontos para gastar em perícias': ['pointPools','skills'], 'pontos para gastar em pericias': ['pointPools','skills'],
+    'pontos de nova perícia': ['pointPools','newSkills'], 'pontos de nova pericia': ['pointPools','newSkills']
   };
   const sectionNames = {
     atributos:'attributes', pericias:'skills', perícias:'skills', 'perícias em quest':'questSkills', 'pericias em quest':'questSkills',
@@ -76,7 +77,7 @@
         const god=raw.match(/^(.*?)\s*-\s*(-?\d+)$/);if(god){result.gods[god[1].trim()]=num(god[2]);continue;}
       }
       if(section==='backpack' && colon){
-        const resources={ouro:['profile','coins'],'ração de pet':['backpack','petFood'],'racao de pet':['backpack','petFood'],'ração especial':['backpack','specialPetFood'],'racao especial':['backpack','specialPetFood'],'refeição de viagem':['backpack','travelMeals'],'refeicao de viagem':['backpack','travelMeals'],'refeição de viagem premium':['backpack','premiumTravelMeals'],'refeicao de viagem premium':['backpack','premiumTravelMeals']};
+        const resources={moeda:['profile','coins'],ouro:['profile','coins'],'ração de pet':['backpack','petFood'],'racao de pet':['backpack','petFood'],'ração de pet especial':['backpack','specialPetFood'],'racao de pet especial':['backpack','specialPetFood'],'ração especial':['backpack','specialPetFood'],'racao especial':['backpack','specialPetFood'],'ração de viagem':['backpack','travelMeals'],'racao de viagem':['backpack','travelMeals'],'refeição de viagem':['backpack','travelMeals'],'refeicao de viagem':['backpack','travelMeals'],'ração de viagem premium':['backpack','premiumTravelMeals'],'racao de viagem premium':['backpack','premiumTravelMeals'],'refeição de viagem premium':['backpack','premiumTravelMeals'],'refeicao de viagem premium':['backpack','premiumTravelMeals']};
         const path=resources[colon[1].trim().toLocaleLowerCase('pt-BR')];if(path){setNested(result,path,Math.max(0,num(colon[2])));continue;}
       }
       if(section==='inventory') result.inventoryParts.push(raw);

@@ -1,5 +1,5 @@
 const equal=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
-const ignored=new Set(['_remoteVersion','_remoteCampaignId','updatedAt','changeNote','changeSource','history']);
+const ignored=new Set(['_remoteVersion','_remoteCampaignId','updatedAt','changeNote','changeSource','history','pointGrantNotices']);
 function mergeCharacter(base,local,remote,{preferRemote=[]}={}){
  const remoteWins=new Set(preferRemote);
  function merge(b,l,r,path=''){
@@ -16,6 +16,6 @@ function mergeCharacter(base,local,remote,{preferRemote=[]}={}){
  }
  const merged=merge(base,local,remote);
  for(const key of ['_remoteVersion','_remoteCampaignId','updatedAt'])merged[key]=remote[key];
- merged.history=remote.history||[];merged.changeNote=local.changeNote;merged.changeSource=local.changeSource;return merged;
+ merged.history=remote.history||[];merged.pointGrantNotices=remote.pointGrantNotices||[];merged.changeNote=local.changeNote;merged.changeSource=local.changeSource;return merged;
 }
 module.exports={mergeCharacter};

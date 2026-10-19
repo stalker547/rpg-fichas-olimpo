@@ -1,6 +1,11 @@
 node_modules/
 server/node_modules/
 dist/
+mobile-web/
+android/.gradle/
+android/app/build/
+.gradle-android/
+.android-signing/
 data/
 RPG Fichas - Dados/
 RPG-Fichas-Portatil-*/

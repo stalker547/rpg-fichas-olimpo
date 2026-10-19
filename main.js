@@ -135,9 +135,10 @@ function readDb() {
     character.attributes ||= {};
     if(Object.prototype.hasOwnProperty.call(character.attributes,'Velocidade')&&!Object.prototype.hasOwnProperty.call(character.attributes,'Carisma')){character.attributes.Carisma=character.attributes.Velocidade;delete character.attributes.Velocidade;cleaned=true;}
     for(const attribute of db.settings.attributeNames)if(!Object.prototype.hasOwnProperty.call(character.attributes,attribute)){character.attributes[attribute]=1;cleaned=true;}
-    if (!character.pointPools) { character.pointPools = { attributes:0, skills:0 }; cleaned = true; }
+    if (!character.pointPools) { character.pointPools = { attributes:0, skills:0, newSkills:0 }; cleaned = true; }
     if (!Number.isFinite(Number(character.pointPools.attributes))) { character.pointPools.attributes = 0; cleaned = true; }
     if (!Number.isFinite(Number(character.pointPools.skills))) { character.pointPools.skills = 0; cleaned = true; }
+    if (!Number.isFinite(Number(character.pointPools.newSkills))) { character.pointPools.newSkills = 0; cleaned = true; }
     if (!Array.isArray(character.abilities)) { character.abilities = []; cleaned = true; }
     if (!Array.isArray(character.rollHistory)) { character.rollHistory = []; cleaned = true; }
     if (!Array.isArray(character.quests)) { character.quests = []; cleaned = true; }
@@ -253,7 +254,7 @@ function flatten(value, prefix = '', result = {}) {
     value.forEach((item, i) => flatten(item, `${prefix}[${i}]`, result));
   } else if (value && typeof value === 'object') {
     Object.entries(value).forEach(([key, item]) => {
-      if (!['history', 'updatedAt', 'changeNote', 'changeSource', 'id', 'path', 'addedAt', 'companions', 'gallery', 'portrait', 'portraitSettings'].includes(key)) flatten(item, prefix ? `${prefix}.${key}` : key, result);
+      if (!['history', 'pointGrantNotices', 'updatedAt', 'changeNote', 'changeSource', 'id', 'path', 'addedAt', 'companions', 'gallery', 'portrait', 'portraitSettings'].includes(key)) flatten(item, prefix ? `${prefix}.${key}` : key, result);
     });
   } else result[prefix] = value;
   return result;
@@ -446,7 +447,16 @@ ipcMain.handle('db:save-character', (event, character, settings) => {
   const changeSource = character.changeSource || 'manual';
   delete character.changeNote;
   delete character.changeSource;
+  if(user.role!=='admin'&&before){
+    const oldUnlocks=Number(before.pointPools?.newSkills)||0,newUnlocks=Number(character.pointPools?.newSkills)||0;
+    const oldSkillIds=new Set((before.skills||[]).map(skill=>skill.id).filter(Boolean));
+    const addedSkills=(character.skills||[]).filter(skill=>skill.id&&!oldSkillIds.has(skill.id)).length;
+    if(newUnlocks<0||newUnlocks>oldUnlocks||oldUnlocks-newUnlocks>addedSkills)throw new Error('Pontos de nova perícia só podem desbloquear perícias novas.');
+    if(changeSource==='point-spend'&&addedSkills>0&&oldUnlocks-newUnlocks!==Math.min(oldUnlocks,addedSkills))throw new Error('Use primeiro os pontos de nova perícia.');
+  }
   const changes = changesBetween(before, character);
+  const grants=user.role==='admin'&&before?.ownerUserId!==user.id&&changeSource!=='level-up'?changes.filter(change=>['pointPools.attributes','pointPools.skills','pointPools.newSkills'].includes(change.field)&&Number(change.after)>Number(change.before)).map(change=>({id:crypto.randomUUID(),at:new Date().toISOString(),by:user.name,kind:change.field.endsWith('attributes')?'attributes':change.field.endsWith('newSkills')?'newSkills':'skills',amount:Number(change.after)-Number(change.before)})):[];
+  character.pointGrantNotices=[...grants,...(before?.pointGrantNotices||[])].slice(0,100);
   const solosAfter=settings?Number(settings.solosByUser?.[solosOwnerId])||0:solosBefore;
   if (solosAfter !== solosBefore) changes.push({ field:'shared.solos', before:solosBefore, after:solosAfter });
   db.settings.solosByUser[solosOwnerId]=solosAfter;

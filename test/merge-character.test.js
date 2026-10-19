@@ -19,3 +19,10 @@ test('player save keeps remote master capacity without creating a conflict',()=>
  const result=mergeCharacter(base,local,remote,{preferRemote:['receptacleCapacity']});
  assert.deepEqual(result.receptacleCapacity,{chain:15,box:5});assert.deepEqual(result.backpack.items,['Espada']);
 });
+test('a player edit keeps point notices added by the master while editing',()=>{
+ const base={notes:'',pointGrantNotices:[],_remoteVersion:1};
+ const local={...base,notes:'Nova anotação'};
+ const remote={...base,pointGrantNotices:[{id:'grant-1',kind:'skills',amount:2}],_remoteVersion:2};
+ const result=mergeCharacter(base,local,remote);
+ assert.equal(result.notes,'Nova anotação');assert.deepEqual(result.pointGrantNotices,remote.pointGrantNotices);
+});
