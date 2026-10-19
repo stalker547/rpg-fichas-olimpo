@@ -394,6 +394,26 @@ ipcMain.handle('auth:choose-background', async event => {
   const destination=path.join(folder,`fundo-${Date.now()}${ext}`);fs.copyFileSync(source,destination);user.appearance={...(user.appearance||{}),backgroundPath:destination};writeDb(db);return publicUser(user);
 });
 ipcMain.handle('auth:remove-background', event => {const db=readDb(),user=sessionUser(event,db);user.appearance={...(user.appearance||{}),backgroundPath:''};writeDb(db);return publicUser(user);});
+ipcMain.handle('auth:cached-appearance', event => {const db=readDb();sessionUser(event,db);return null});
+ipcMain.handle('clipboard:read-text', event => {const db=readDb();sessionUser(event,db);return clipboard.readText()});
+ipcMain.handle('auth:save-appearance-preset', (event, name) => {
+  const db=readDb(),user=sessionUser(event,db),label=String(name||'').trim(),appearance=user.appearance||{},presets=Array.isArray(appearance.presets)?appearance.presets:[];
+  if(!label||label.length>60)throw new Error('O nome do estilo deve ter até 60 caracteres.');
+  if(presets.length>=12)throw new Error('Limite de 12 estilos salvos por conta.');
+  if(presets.some(preset=>normalizeUsername(preset.name)===normalizeUsername(label)))throw new Error('Já existe um estilo com esse nome.');
+  const style=Object.fromEntries(['bg','bg2','panel','panel2','sidebar','input','line','accent','accent2','text','muted','gold','danger','toast','toastError','dirtyBar','gradientEnabled','gradientAngle'].filter(key=>appearance[key]!==undefined).map(key=>[key,appearance[key]]));
+  user.appearance={...appearance,presets:[...presets,{id:crypto.randomUUID(),name:label,style,backgroundPath:appearance.backgroundPath||''}]};writeDb(db);return publicUser(user);
+});
+ipcMain.handle('auth:apply-appearance-preset', (event, id) => {
+  const db=readDb(),user=sessionUser(event,db),appearance=user.appearance||{},preset=(appearance.presets||[]).find(item=>item.id===id);
+  if(!preset)throw new Error('Estilo não encontrado.');
+  user.appearance={...appearance,...preset.style,backgroundPath:preset.backgroundPath||''};writeDb(db);return publicUser(user);
+});
+ipcMain.handle('auth:delete-appearance-preset', (event, id) => {
+  const db=readDb(),user=sessionUser(event,db),appearance=user.appearance||{},presets=appearance.presets||[];
+  if(!presets.some(item=>item.id===id))throw new Error('Estilo não encontrado.');
+  user.appearance={...appearance,presets:presets.filter(item=>item.id!==id)};writeDb(db);return publicUser(user);
+});
 ipcMain.handle('auth:create-user', (event, data) => {
   const db=readDb();sessionUser(event,db,true);db.settings.authUsers ||= [];
   const username=normalizeUsername(data.username),password=String(data.password||''),role=data.role==='admin'?'admin':'player';
@@ -431,6 +451,12 @@ ipcMain.handle('db:update-skill-catalog', (event, skills) => {
   if(new Set(next.map(skill=>normalizeUsername(skill.name))).size!==next.length)throw new Error('Não pode haver perícias repetidas.');
   db.settings.customSkillCatalog=next;writeDb(db);return visibleDb(db,sessionUser(event,db,true));
 });
+ipcMain.handle('db:update-tables', (event, tables) => {
+  const db=readDb(),admin=sessionUser(event,db,true);
+  const next=(Array.isArray(tables)?tables:[]).map(table=>({id:String(table.id||'').trim(),name:String(table.name||'').trim()}));
+  if(next.length>100||next.some(table=>!table.id||!table.name||table.name.length>80)||new Set(next.map(table=>normalizeUsername(table.name))).size!==next.length||new Set(next.map(table=>table.id)).size!==next.length)throw new Error('Informe nomes de mesas válidos e sem repetição.');
+  db.settings.tables=next;writeDb(db);return visibleDb(db,admin);
+});
 ipcMain.handle('db:save-character', (event, character, settings) => {
   const db = readDb();
   const user=sessionUser(event,db);
@@ -438,6 +464,7 @@ ipcMain.handle('db:save-character', (event, character, settings) => {
   const before = index >= 0 ? db.characters[index] : null;
   if((character.creations||[]).length>Math.max(1,(before?.creations||[]).length))throw new Error('Só é possível aprender uma habilidade por vez. Finalize o aprendizado atual.');
   if(before&&user.role!=='admin'&&before.ownerUserId!==user.id)throw new Error('Você não tem permissão para editar esta ficha.');
+  if(user.role!=='admin'&&before&&String(character.tableId||'')!==String(before.tableId||''))throw new Error('Somente a mestre pode alterar a mesa do personagem.');
   if(user.role!=='admin'&&Boolean(character.archived)!==Boolean(before?.archived))throw new Error('Apenas a mestre pode engavetar ou restaurar fichas.');
   character.ownerUserId=user.role==='admin'?(character.ownerUserId||user.id):user.id;
   const solosOwnerId=character.ownerUserId||user.id;

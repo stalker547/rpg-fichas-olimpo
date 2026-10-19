@@ -10,8 +10,9 @@
 <body>
   <aside class="sidebar">
     <div class="brand"><span class="brand-mark"><img src="../assets/app-icon.png" alt=""></span><div><strong>RPG Fichas</strong><small>Arquivo de personagens</small></div></div>
-    <div class="main-menu"><button id="menu-sheets" class="menu-button active">▣ Fichas</button><button id="menu-archived" class="menu-button">▰ Fichas engavetadas</button><button id="menu-directory" class="menu-button">♙ Personagens / NPCs</button></div>
+    <div class="main-menu"><button id="menu-sheets" class="menu-button active">▣ Fichas</button><button id="menu-archived" class="menu-button">▰ Fichas engavetadas</button><button id="menu-directory" class="menu-button">♙ Mesas</button></div>
     <button id="new-character" class="primary wide">＋ Novo personagem</button>
+    <div id="sidebar-table-filter" class="sidebar-table-filter hidden"></div>
     <div id="character-list" class="character-list"></div>
     <div class="side-footer"><button id="customize-menu" class="ghost wide">⚙ Personalizar meu menu</button><button id="open-data" class="ghost wide">Abrir pasta dos dados</button><small>Salvamento local automático ao confirmar</small></div>
   </aside>
@@ -43,7 +44,7 @@
       <div class="section-head"><div><h2>Colar ficha atual</h2><p>Cole todo o conteúdo do arquivo TXT. As informações reconhecidas atualizarão o personagem selecionado.</p></div><button id="close-import" class="ghost">Fechar</button></div>
       <textarea id="import-text" class="import-text" placeholder="Cole aqui o conteúdo completo da ficha..."></textarea>
       <div id="import-preview" class="import-preview">A prévia aparecerá aqui.</div>
-      <div class="modal-actions"><button id="preview-import" class="ghost">Analisar texto</button><button id="apply-import" class="primary" disabled>Atualizar personagem</button></div>
+      <div class="modal-actions"><button id="paste-import" class="ghost">Colar da área de transferência</button><button id="preview-import" class="ghost">Analisar texto</button><button id="apply-import" class="primary" disabled>Atualizar personagem</button></div>
     </div>
   </div>
   <div id="ocr-modal" class="modal hidden">

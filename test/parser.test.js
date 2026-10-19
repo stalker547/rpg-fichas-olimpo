@@ -71,6 +71,26 @@ test('preserva habilidades e ideias durante a importação', () => {
   assert.equal(updated.ideas.length, 1);
 });
 
+test('preserva IDs e requisitos administrativos ao atualizar progresso pelo TXT', () => {
+  const original={name:'Thales',profile:{},attributes:{},skills:[{id:'skill-1',name:'Atletismo',value:4,extraBonuses:'corrida +3'}],learning:[{id:'learning-1',name:'Construção',current:1,goal:10}],quests:[{id:'quest-1',name:'Medicina',value:10,current:2,goal:10,extraRequirement:'Aprovação da mestre',extraRequirementApproved:true}],gods:{}};
+  const parsed=parse('Perícias:\nAtletismo - 5\nConstrução aprendendo (3/10)\n\nPerícias em quest:\nMedicina - 10\n\nQuest\nMedicina\nRequisito: use 4/10');
+  const updated=apply(original,parsed);
+  assert.equal(updated.skills[0].id,'skill-1');
+  assert.equal(updated.skills[0].extraBonuses,'corrida +3');
+  assert.equal(updated.learning[0].id,'learning-1');
+  assert.equal(updated.learning[0].current,3);
+  assert.equal(updated.quests[0].id,'quest-1');
+  assert.equal(updated.quests[0].current,4);
+  assert.equal(updated.quests[0].extraRequirementApproved,true);
+});
+
+test('não desfaz aprovação de uma ideia ao colar TXT novamente', () => {
+  const original={name:'Thales',profile:{},attributes:{},skills:[],learning:[],quests:[],gods:{},creations:[{id:'creation-1',name:'Rastro marcado',current:20,requirement:30}],ideas:[{id:'idea-1',name:'Rastro marcado',status:'Aprovada',initialRequirement:30}]};
+  const updated=apply(original,parse('Criação de habilidade\nAprendizado\nNome: Rastro marcado\nRequisito: 25'));
+  assert.equal(updated.ideas[0].status,'Aprovada');
+  assert.equal(updated.ideas[0].initialRequirement,25);
+});
+
 test('preserva atributos não informados ao atualizar nível e XP', () => {
   const original = { name:'Thales', profile:{level:5,xp:2}, attributes:{Força:3,Resistência:2}, skills:[], learning:[], quests:[], gods:{} };
   const updated = apply(original, parse('Nível: 6\nXP: 4'));

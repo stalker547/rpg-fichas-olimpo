@@ -9,6 +9,7 @@
   const skillKey=value=>{const key=String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').replace(/[^a-z0-9]/g,'');return key.length>3&&key.endsWith('s')?key.slice(0,-1):key};
   function canonicalSkillName(value,existing=[]){const key=skillKey(value),official=officialSkills.find(name=>skillKey(name)===key);if(official)return official;return existing.find(name=>skillKey(name)===key)||String(value||'').trim()}
   function canonicalSkills(items,existing=[]){const result=[];for(const raw of items||[]){const item={...raw,name:canonicalSkillName(raw.name,existing)},found=result.find(entry=>skillKey(entry.name)===skillKey(item.name));if(!found){result.push(item);continue}for(const field of ['value','bonus','current','goal','successCount','failureCount'])if(num(item[field])>num(found[field]))found[field]=item[field]}return result}
+  function mergeImportedSkills(items,previous,existingNames){return canonicalSkills(items,existingNames).map(item=>{const old=(previous||[]).find(entry=>skillKey(entry.name)===skillKey(item.name));return old?{...old,...item,id:old.id||item.id}:item})}
   const fieldMap = {
     nome: ['name'], idade: ['profile','age'], corrente: ['profile','current'], parente: ['profile','parent'],
     reconhecido: ['profile','recognized'], nível: ['profile','level'], nivel: ['profile','level'], xp: ['profile','xp'],
@@ -94,10 +95,10 @@
     if(Object.keys(parsed.pointPools||{}).length)out.pointPools={...(out.pointPools||{}),...parsed.pointPools};
     if(Object.keys(parsed.attributes).length)out.attributes={...out.attributes,...parsed.attributes};
     const existingNames=[...(out.skills||[]),...(out.learning||[]),...(out.quests||[])].map(item=>item.name);
-    if(parsed.skills.length)out.skills=canonicalSkills(parsed.skills,existingNames);
-    if(parsed.learning.length)out.learning=canonicalSkills(parsed.learning,existingNames);
-    if(parsed.quests.length)out.quests=canonicalSkills(parsed.quests,existingNames);
-    if(parsed.creations?.length){out.creations||=[];out.ideas||=[];for(const parsedCreation of parsed.creations){let creation=out.creations.find(item=>skillKey(item.name)===skillKey(parsedCreation.name)),idea=out.ideas.find(item=>skillKey(item.name)===skillKey(parsedCreation.name));if(!idea){idea={...(parsed.ideas||[]).find(item=>skillKey(item.name)===skillKey(parsedCreation.name))};out.ideas.push(idea)}idea.id||=parsedCreation.ideaId;idea.name=parsedCreation.name;idea.status='Em desenvolvimento';idea.initialRequirement=parsedCreation.requirement;idea.approvedFromImport=true;if(!creation){creation={...parsedCreation};out.creations.push(creation)}else{creation.type='Criação de habilidade';creation.current=parsedCreation.current;creation.requirement=parsedCreation.requirement;creation.progressMode='countdown';creation.initialized=true}creation.ideaId=idea.id}}
+    if(parsed.skills.length)out.skills=mergeImportedSkills(parsed.skills,out.skills,existingNames);
+    if(parsed.learning.length)out.learning=mergeImportedSkills(parsed.learning,out.learning,existingNames);
+    if(parsed.quests.length)out.quests=mergeImportedSkills(parsed.quests,out.quests,existingNames);
+    if(parsed.creations?.length){out.creations||=[];out.ideas||=[];for(const parsedCreation of parsed.creations){let creation=out.creations.find(item=>skillKey(item.name)===skillKey(parsedCreation.name)),idea=out.ideas.find(item=>skillKey(item.name)===skillKey(parsedCreation.name));if(!idea){idea={...(parsed.ideas||[]).find(item=>skillKey(item.name)===skillKey(parsedCreation.name))};out.ideas.push(idea)}idea.id||=parsedCreation.ideaId;idea.name=parsedCreation.name;idea.status||='Em desenvolvimento';idea.initialRequirement=parsedCreation.requirement;idea.approvedFromImport=true;if(!creation){creation={...parsedCreation};out.creations.push(creation)}else{creation.type='Criação de habilidade';creation.current=parsedCreation.current;creation.requirement=parsedCreation.requirement;creation.progressMode='countdown';creation.initialized=true}creation.ideaId=idea.id}}
     if(Object.keys(parsed.gods).length)out.gods=parsed.gods;
     if(Object.keys(parsed.backpack||{}).length)out.backpack={...(out.backpack||{}),...parsed.backpack};
     if(parsed.inventory)out.inventory=parsed.inventory;
