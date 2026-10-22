@@ -29,13 +29,57 @@ test('incomplete and uninitialized progress remains unchanged',()=>{
 
 test('quest concluída volta para perícias no valor da faixa concluída',()=>{
  const c={skills:[],quests:[{id:'training',name:'Treinamento',value:10,bonus:0,current:10,goal:10}],creations:[],ideas:[],abilities:[]};
- assert.equal(applyProgression(c),true);assert.equal(c.quests.length,0);assert.equal(c.skills.length,1);assert.equal(c.skills[0].name,'Treinamento');assert.equal(c.skills[0].value,10);
+ assert.equal(applyProgression(c),true);assert.equal(c.quests.length,0);assert.equal(c.skills.length,1);assert.equal(c.skills[0].name,'Treinamento');assert.equal(c.skills[0].value,10);assert.equal(c.skills[0].bonus,3);
  assert.equal(applyProgression(c),false);assert.equal(c.skills[0].value,10);
 });
 
 test('quest 20 concluída volta como perícia 20',()=>{
  const c={skills:[],quests:[{id:'medicine',name:'Medicina',value:20,bonus:3,current:10,goal:10}],creations:[],ideas:[],abilities:[]};
- applyProgression(c);assert.equal(c.skills[0].value,20);assert.equal(c.skills[0].bonus,3);
+ applyProgression(c);assert.equal(c.skills[0].value,20);assert.equal(c.skills[0].bonus,7);
+});
+
+test('quest 30 concluída concede +11',()=>{
+ const c={skills:[],quests:[{name:'Controle',value:30,bonus:7,current:10,goal:10}],creations:[],ideas:[],abilities:[]};
+ applyProgression(c);assert.equal(c.skills[0].bonus,11);
+});
+
+for(const [tier,previous,earned] of [[40,11,15],[50,15,20]]){
+ test(`quest ${tier} só concede +${earned} depois de concluída`,()=>{
+  const c={skills:[],quests:[{name:'Controle',value:tier,bonus:previous,current:4,goal:10}],creations:[],ideas:[],abilities:[]};
+  applyProgression(c);assert.equal(c.quests[0].bonus,previous);
+  c.quests[0].current=10;applyProgression(c);
+  assert.equal(c.skills[0].bonus,earned);assert.equal(c.skills[0].completedQuestTier,tier);
+ });
+}
+
+for(const [value,bonus] of [[35,11],[45,15]]){
+ test(`perícia antiga de nível ${value} recupera bônus +${bonus}`,()=>{
+  const c={skills:[{name:'Controle',value,bonus:0}],quests:[],creations:[],ideas:[],abilities:[]};
+  applyProgression(c);assert.equal(c.skills[0].bonus,bonus);
+ });
+}
+
+test('perícia antiga no nível 50 não recebe +20 antes de concluir a quest',()=>{
+ const c={skills:[{name:'Controle',value:50,bonus:15}],quests:[],creations:[],ideas:[],abilities:[]};
+ applyProgression(c);assert.equal(c.quests[0].bonus,15);
+ c.quests[0].current=10;applyProgression(c);assert.equal(c.skills[0].bonus,20);
+});
+
+test('perícia antiga entre 10 e 19 recebe +3 após concluir quest 10',()=>{
+ const c={skills:[{name:'Controle',value:15,bonus:0}],quests:[],creations:[],ideas:[],abilities:[]};
+ assert.equal(applyProgression(c),true);assert.equal(c.skills[0].bonus,3);
+ assert.equal(applyProgression(c),false);
+});
+
+test('quest 20 em andamento mantém +3 até a conclusão',()=>{
+ const c={skills:[],quests:[{name:'Controle',value:20,bonus:0,current:4,goal:10}],creations:[],ideas:[],abilities:[]};
+ applyProgression(c);assert.equal(c.quests[0].bonus,3);
+ c.quests[0].current=10;applyProgression(c);assert.equal(c.skills[0].bonus,7);
+});
+
+test('nível 10 sem quest concluída não recebe bônus antes da hora',()=>{
+ const c={skills:[{name:'Controle',value:10,bonus:0}],quests:[],creations:[],ideas:[],abilities:[]};
+ applyProgression(c);assert.equal(c.quests[0].bonus,0);
 });
 
 test('perícia que alcança 10 entra automaticamente na quest 10',()=>{

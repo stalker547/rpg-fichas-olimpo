@@ -4,6 +4,7 @@
  function abilityUseGoal(level){return 20+Math.max(1,Number(level)||1)*5}
  function abilityAtMax(ability){const maximum=abilityMaxLevel(ability?.type);return maximum!==null&&Math.max(1,Number(ability?.level)||1)>=maximum}
  function skillKey(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'')}
+ function questCompletionBonus(tier){return {10:3,20:7,30:11,40:15,50:20}[tier]||0}
  function startSkillQuests(character){
   character.skills||=[];character.quests||=[];let changed=false;
   for(let index=character.skills.length-1;index>=0;index--){
@@ -31,11 +32,22 @@
   for(const quest of completedQuests){
    const key=skillKey;
    const existing=character.skills.find(skill=>key(skill.name)===key(quest.name)),nextValue=Math.min(50,Math.max(1,Number(quest.value)||0));
-   if(existing){existing.value=Math.max(Number(existing.value)||0,nextValue);existing.bonus=Math.max(Number(existing.bonus)||0,Number(quest.bonus)||0);existing.completedQuestTier=Math.max(Number(existing.completedQuestTier)||0,nextValue)}
-   else character.skills.push({id:quest.id||`quest-complete-${key(quest.name)}`,name:quest.name||'Nova perícia',value:nextValue,bonus:Number(quest.bonus)||0,successCount:0,failureCount:0,completedQuestTier:nextValue});
+   const bonus=Math.max(Number(quest.bonus)||0,questCompletionBonus(nextValue));
+   if(existing){existing.value=Math.max(Number(existing.value)||0,nextValue);existing.bonus=Math.max(Number(existing.bonus)||0,bonus);existing.completedQuestTier=Math.max(Number(existing.completedQuestTier)||0,nextValue)}
+   else character.skills.push({id:quest.id||`quest-complete-${key(quest.name)}`,name:quest.name||'Nova perícia',value:nextValue,bonus,successCount:0,failureCount:0,completedQuestTier:nextValue});
    changed=true;
   }
   if(completedQuests.length)character.quests=character.quests.filter(q=>!completedQuests.includes(q));
+  // Existing characters may have completed quests before bonuses were automatic.
+  for(const skill of character.skills){
+   const value=Number(skill.value)||0,tier=Number(skill.completedQuestTier)||0;
+   const earned=tier>=50?20:tier>=40||value>40?15:tier>=30||value>30?11:tier>=20||value>20?7:tier>=10||value>10?3:0;
+   if(earned>(Number(skill.bonus)||0)){skill.bonus=earned;changed=true}
+  }
+  for(const quest of character.quests){
+   const value=Number(quest.value)||0,earned=value>=50?15:value>=40?11:value>=30?7:value>=20?3:0;
+   if(earned>(Number(quest.bonus)||0)){quest.bonus=earned;changed=true}
+  }
   if(startSkillQuests(character))changed=true;
   for(const ability of character.abilities||[]){
    const maximum=abilityMaxLevel(ability.type);

@@ -160,6 +160,10 @@ body{background-image:radial-gradient(circle at 80% 0,color-mix(in srgb,var(--gr
 .ability-group-controls{display:flex;align-items:center;gap:8px}.ability-group-count{min-width:35px;padding:7px 10px;border-radius:10px;background:color-mix(in srgb,var(--green) 17%,var(--panel2));color:var(--green2);text-align:center;font-weight:800}.ability-type-group.passive .ability-group-count{color:#8edcf4;background:#142a33}.ability-type-group.ultimate .ability-group-count{color:#d9b5ff;background:#291d35}
 .roll-list-tools input{background:var(--input);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:9px}.roll-list-tools input::placeholder{color:var(--muted)}.roll-skill-grid{background:var(--panel2);border-color:var(--line)}.roll-skill{background:var(--panel);border-color:var(--line)}.roll-skill:hover,.roll-skill.selected{border-color:var(--green);background:color-mix(in srgb,var(--green) 13%,var(--panel))}.roll-skill.temporary-skill{background:var(--panel);border-color:var(--line)}.roll-skill.temporary-skill strong{color:var(--muted)}.roll-collapsed-note{grid-column:1/-1;padding:14px;color:var(--muted);font-size:12px}
 .roll-skill:hover,.roll-skill.selected,.roll-formula .roll-result.success{border-color:var(--green);background:color-mix(in srgb,var(--green) 14%,var(--panel2))}
+/* Contornos neutros seguem o estilo da conta, sem verde fixo. */
+.empty,.roll-no-attribute>div{background:var(--input);border-color:var(--line);color:var(--muted)}
+.ability-type-group+.ability-type-group{border-top-color:var(--line)}
+.new-ability-dialog{width:min(900px,95vw)}.new-ability-dialog h2{margin:0 0 6px}.new-ability-dialog .form-grid{margin-top:20px}.new-ability-dialog textarea{min-height:120px}
 .roll-formula .roll-result.success strong{color:var(--green2)}
 .role-badge,.assigned-characters b,.history-event,.pet-evolution-track .complete{background:color-mix(in srgb,var(--green) 16%,var(--panel2));border-color:var(--green);color:var(--green2)}
 .assigned-characters,.evolution-action{background:var(--panel2)}
@@ -171,6 +175,13 @@ body{background-image:radial-gradient(circle at 80% 0,color-mix(in srgb,var(--gr
 .summary-counts .green,.summary-counts .green b,.idea-preview-card header small,.pet-training-head strong,.entity-type{color:var(--green2);border-color:var(--green)}
 .portrait,.directory-avatar,.companion-identity>img,.companion-identity>span{border-color:var(--green);background:color-mix(in srgb,var(--green) 16%,var(--panel2));color:var(--green2)}
 .companion-card.editing,.pet-training,.directory-card:hover,.directory-card.active{border-color:var(--green)}
+.directory-card{background:var(--panel);border-color:var(--line)}
+.directory-card:hover,.directory-card.active{background:var(--panel2);border-color:var(--green)}
+.directory-list-cards .directory-avatar{background:var(--panel2)}
+.directory-search input{background:var(--input);border-color:var(--line)}
+.entity-type{color:var(--green2)}
+.npc-editor{background:var(--panel2);border-color:var(--line)}
+.npc-profile{border-bottom-color:var(--line)}
 .companion-identity small{color:var(--muted)}
 .goal-progress span{background:linear-gradient(90deg,var(--green),var(--green2),var(--gold))}
 .saved-flash{background:var(--green2)!important;color:var(--bg)!important;box-shadow:0 0 0 4px color-mix(in srgb,var(--green) 20%,transparent)}
