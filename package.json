@@ -35,6 +35,7 @@
       "online-main.js",
       "online-client.js",
       "merge-character.js",
+      "appearance-style.js",
       "storage.js",
       "ocr-table.js",
       "preload.js",

@@ -5,6 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { readAbilityTable } = require('./ocr-table');
 const { SqliteStorage } = require('./storage');
+const {exportStyle,importStyle}=require('./appearance-style');
 
 const APP_ROOT = __dirname;
 const EXEC_ROOT = process.env.PORTABLE_EXECUTABLE_DIR || (app.isPackaged ? path.dirname(app.getPath('exe')) : APP_ROOT);
@@ -382,7 +383,7 @@ ipcMain.handle('auth:login', (event, data) => {
 ipcMain.handle('auth:logout', event => { sessions.delete(event.sender.id);return true; });
 ipcMain.handle('auth:change-password', (event, data) => {const db=readDb(),user=sessionUser(event,db),current=String(data?.currentPassword||''),next=String(data?.newPassword||'');if(!passwordMatches(current,user))throw new Error('A senha atual está incorreta.');if(next.length<4)throw new Error('A nova senha precisa ter pelo menos 4 caracteres.');const record=passwordRecord(next);user.passwordSalt=record.salt;user.passwordHash=record.hash;writeDb(db);return true;});
 ipcMain.handle('auth:update-appearance', (event, appearance) => {
-  const db=readDb(),user=sessionUser(event,db),colors=['bg','bg2','panel','panel2','sidebar','input','line','accent','accent2','text','muted','gold','danger','toast','toastError','dirtyBar'],next={...(user.appearance||{})};
+  const db=readDb(),user=sessionUser(event,db),colors=['bg','bg2','panel','panel2','sidebar','input','line','accent','accent2','text','muted','gold','danger','toast','toastError','dirtyBar','notification'],next={...(user.appearance||{})};
   for(const key of colors){const value=String(appearance?.[key]||'');if(!/^#[0-9a-f]{6}$/i.test(value))throw new Error('Cor de aparência inválida.');next[key]=value;}
   next.gradientEnabled=Boolean(appearance?.gradientEnabled);next.gradientAngle=['45deg','90deg','135deg','180deg'].includes(appearance?.gradientAngle)?appearance.gradientAngle:'135deg';
   user.appearance=next;writeDb(db);return publicUser(user);
@@ -395,19 +396,27 @@ ipcMain.handle('auth:choose-background', async event => {
 });
 ipcMain.handle('auth:remove-background', event => {const db=readDb(),user=sessionUser(event,db);user.appearance={...(user.appearance||{}),backgroundPath:''};writeDb(db);return publicUser(user);});
 ipcMain.handle('auth:cached-appearance', event => {const db=readDb();sessionUser(event,db);return null});
+ipcMain.handle('auth:export-appearance-style',async(event,appearance,name)=>{const db=readDb();sessionUser(event,db);const contents=exportStyle(appearance,name),fileName=String(name||'meu-estilo').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9-]+/gi,'-').replace(/^-|-$/g,'').slice(0,60)||'meu-estilo',chosen=await dialog.showSaveDialog({title:'Exportar estilo',defaultPath:`${fileName}.rpgstyle.json`,filters:[{name:'Estilo RPG Fichas',extensions:['json']}]});if(chosen.canceled||!chosen.filePath)return false;fs.writeFileSync(chosen.filePath,contents,'utf8');return true});
+ipcMain.handle('auth:import-appearance-style',async event=>{const db=readDb();sessionUser(event,db);const chosen=await dialog.showOpenDialog({title:'Importar estilo',properties:['openFile'],filters:[{name:'Estilo RPG Fichas',extensions:['json']}]});if(chosen.canceled||!chosen.filePaths[0])return null;const file=chosen.filePaths[0];if(fs.statSync(file).size>32768)throw new Error('Arquivo de estilo grande demais.');return importStyle(fs.readFileSync(file,'utf8'))});
 ipcMain.handle('clipboard:read-text', event => {const db=readDb();sessionUser(event,db);return clipboard.readText()});
 ipcMain.handle('auth:save-appearance-preset', (event, name) => {
   const db=readDb(),user=sessionUser(event,db),label=String(name||'').trim(),appearance=user.appearance||{},presets=Array.isArray(appearance.presets)?appearance.presets:[];
   if(!label||label.length>60)throw new Error('O nome do estilo deve ter até 60 caracteres.');
   if(presets.length>=12)throw new Error('Limite de 12 estilos salvos por conta.');
   if(presets.some(preset=>normalizeUsername(preset.name)===normalizeUsername(label)))throw new Error('Já existe um estilo com esse nome.');
-  const style=Object.fromEntries(['bg','bg2','panel','panel2','sidebar','input','line','accent','accent2','text','muted','gold','danger','toast','toastError','dirtyBar','gradientEnabled','gradientAngle'].filter(key=>appearance[key]!==undefined).map(key=>[key,appearance[key]]));
+  const style=Object.fromEntries(['bg','bg2','panel','panel2','sidebar','input','line','accent','accent2','text','muted','gold','danger','toast','toastError','dirtyBar','notification','gradientEnabled','gradientAngle'].filter(key=>appearance[key]!==undefined).map(key=>[key,appearance[key]]));
   user.appearance={...appearance,presets:[...presets,{id:crypto.randomUUID(),name:label,style,backgroundPath:appearance.backgroundPath||''}]};writeDb(db);return publicUser(user);
 });
 ipcMain.handle('auth:apply-appearance-preset', (event, id) => {
   const db=readDb(),user=sessionUser(event,db),appearance=user.appearance||{},preset=(appearance.presets||[]).find(item=>item.id===id);
   if(!preset)throw new Error('Estilo não encontrado.');
   user.appearance={...appearance,...preset.style,backgroundPath:preset.backgroundPath||''};writeDb(db);return publicUser(user);
+});
+ipcMain.handle('auth:overwrite-appearance-preset', (event, id) => {
+  const db=readDb(),user=sessionUser(event,db),appearance=user.appearance||{},presets=appearance.presets||[],preset=presets.find(item=>item.id===id);
+  if(!preset)throw new Error('Estilo não encontrado.');
+  const style=Object.fromEntries(['bg','bg2','panel','panel2','sidebar','input','line','accent','accent2','text','muted','gold','danger','toast','toastError','dirtyBar','notification','gradientEnabled','gradientAngle'].filter(key=>appearance[key]!==undefined).map(key=>[key,appearance[key]]));
+  user.appearance={...appearance,presets:presets.map(item=>item.id===id?{...item,style,backgroundPath:appearance.backgroundPath||''}:item)};writeDb(db);return publicUser(user);
 });
 ipcMain.handle('auth:delete-appearance-preset', (event, id) => {
   const db=readDb(),user=sessionUser(event,db),appearance=user.appearance||{},presets=appearance.presets||[];
@@ -466,12 +475,14 @@ ipcMain.handle('db:save-character', (event, character, settings) => {
   if(before&&user.role!=='admin'&&before.ownerUserId!==user.id)throw new Error('Você não tem permissão para editar esta ficha.');
   if(user.role!=='admin'&&before&&String(character.tableId||'')!==String(before.tableId||''))throw new Error('Somente a mestre pode alterar a mesa do personagem.');
   if(user.role!=='admin'&&Boolean(character.archived)!==Boolean(before?.archived))throw new Error('Apenas a mestre pode engavetar ou restaurar fichas.');
+  if(user.role!=='admin'&&before&&Boolean(character.txtPasteBlocked)!==Boolean(before.txtPasteBlocked))throw new Error('Somente a mestre pode bloquear ou liberar Colar TXT.');
   character.ownerUserId=user.role==='admin'?(character.ownerUserId||user.id):user.id;
   const solosOwnerId=character.ownerUserId||user.id;
   db.settings.solosByUser||={};
   const solosBefore = Number(db.settings.solosByUser[solosOwnerId]) || 0;
   const changeNote = character.changeNote || 'Alteração manual';
   const changeSource = character.changeSource || 'manual';
+  if(user.role!=='admin'&&before?.txtPasteBlocked&&changeSource==='txt-import')throw new Error('A mestre bloqueou Colar TXT para esta ficha.');
   delete character.changeNote;
   delete character.changeSource;
   if(user.role!=='admin'&&before){

@@ -30,6 +30,29 @@ async function cropCell(imagePath,left,top,right,bottom) {
 
 function cleanText(text) { return String(text||'').replace(/\s*\n\s*/g,' ').replace(/\s+/g,' ').replace(/^[|:;.,_\-\s]+|[|_\s]+$/g,'').trim(); }
 
+async function cellInkWeight(imagePath,left,top,right,bottom){
+  const pad=6,width=right-left-pad*2,height=bottom-top-pad*2;
+  if(width<10||height<10)return {stroke:0,textHeight:0};
+  const {data,info}=await sharp(imagePath).extract({left:left+pad,top:top+pad,width,height}).grayscale().raw().toBuffer({resolveWithObject:true});
+  let total=0,runs=0,first=height,last=-1;
+  for(let y=0;y<info.height;y++){
+    let run=0,rowInk=0;
+    for(let x=0;x<info.width;x++){
+      if(data[y*info.width+x]<90){run++;rowInk++}
+      else if(run){if(run<=12){total+=run;runs++}run=0}
+    }
+    if(run&&run<=12){total+=run;runs++}
+    if(rowInk>3){first=Math.min(first,y);last=y}
+  }
+  return {stroke:runs?total/runs:0,textHeight:last>=first?last-first+1:0};
+}
+
+function classifyBoldRows(rows){
+  const scores=rows.map(row=>row.boldScore||0).filter(score=>score>0).sort((a,b)=>a-b);
+  const baseline=scores[Math.floor((scores.length-1)/2)]||0;
+  return rows.map(row=>({...row,type:row.boldScore>=0.155&&(baseline>=0.155||row.boldScore>=baseline*1.18)?'passive':'active'}));
+}
+
 async function readAbilityTable(imagePath, options) {
   const bounds=await tableBounds(imagePath);
   const worker=await createWorker('por',OEM.LSTM_ONLY,options);
@@ -44,15 +67,16 @@ async function readAbilityTable(imagePath, options) {
         bounds.hasLevel?cropCell(imagePath,bounds.xs[2]+14,top,bounds.xs[3],bottom):Promise.resolve(null)
       ]);
       const [nameBuffer,effectBuffer,levelBuffer]=buffers;
+      const [nameInk,effectInk]=await Promise.all([cellInkWeight(imagePath,bounds.xs[0],top,bounds.xs[1],bottom),cellInkWeight(imagePath,bounds.xs[1],top,bounds.xs[2],bottom)]);
       await worker.setParameters({tessedit_pageseg_mode:PSM.SINGLE_BLOCK,tessedit_char_whitelist:''});
       const name=cleanText((await worker.recognize(nameBuffer)).data.text);
       const effect=cleanText((await worker.recognize(effectBuffer)).data.text);
       let levelText='1';
       if(levelBuffer){await worker.setParameters({tessedit_pageseg_mode:PSM.SINGLE_CHAR,tessedit_char_whitelist:'0123456789'});levelText=cleanText((await worker.recognize(levelBuffer)).data.text);}
-      if(name&&!/^(hab|habilidade)$/i.test(name)&&effect)abilities.push({name,effect,level:Number(levelText.match(/\d+/)?.[0])||1});
+      if(name&&!/^(hab|habilidade)$/i.test(name)&&effect)abilities.push({name,effect,level:Number(levelText.match(/\d+/)?.[0])||1,boldScore:nameInk.textHeight?Math.max(nameInk.stroke,effectInk.stroke)/nameInk.textHeight:0});
     }
   }finally{await worker.terminate();}
-  return abilities;
+  return classifyBoldRows(abilities).map(({boldScore,...ability})=>ability);
 }
 
-module.exports={readAbilityTable,tableBounds,cleanText};
+module.exports={readAbilityTable,tableBounds,cleanText,cellInkWeight,classifyBoldRows};

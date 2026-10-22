@@ -9,7 +9,8 @@
   const skillKey=value=>{const key=String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').replace(/[^a-z0-9]/g,'');return key.length>3&&key.endsWith('s')?key.slice(0,-1):key};
   function canonicalSkillName(value,existing=[]){const key=skillKey(value),official=officialSkills.find(name=>skillKey(name)===key);if(official)return official;return existing.find(name=>skillKey(name)===key)||String(value||'').trim()}
   function canonicalSkills(items,existing=[]){const result=[];for(const raw of items||[]){const item={...raw,name:canonicalSkillName(raw.name,existing)},found=result.find(entry=>skillKey(entry.name)===skillKey(item.name));if(!found){result.push(item);continue}for(const field of ['value','bonus','current','goal','successCount','failureCount'])if(num(item[field])>num(found[field]))found[field]=item[field]}return result}
-  function mergeImportedSkills(items,previous,existingNames){return canonicalSkills(items,existingNames).map(item=>{const old=(previous||[]).find(entry=>skillKey(entry.name)===skillKey(item.name));return old?{...old,...item,id:old.id||item.id}:item})}
+  function mergeImportedSkills(items,previous,existingNames){const merged=[...(previous||[])];for(const item of canonicalSkills(items,existingNames)){const index=merged.findIndex(entry=>skillKey(entry.name)===skillKey(item.name));if(index<0)merged.push(item);else merged[index]={...merged[index],...item,id:merged[index].id||item.id}}return merged}
+  const sameCharacterName=(a,b)=>String(a||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').replace(/[^a-z0-9]/g,'')===String(b||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').replace(/[^a-z0-9]/g,'');
   const fieldMap = {
     nome: ['name'], idade: ['profile','age'], corrente: ['profile','current'], parente: ['profile','parent'],
     reconhecido: ['profile','recognized'], nível: ['profile','level'], nivel: ['profile','level'], xp: ['profile','xp'],
@@ -21,8 +22,8 @@
     'pontos de nova perícia': ['pointPools','newSkills'], 'pontos de nova pericia': ['pointPools','newSkills']
   };
   const sectionNames = {
-    atributos:'attributes', pericias:'skills', perícias:'skills', 'perícias em quest':'questSkills', 'pericias em quest':'questSkills',
-    quest:'questProgress', 'criação de habilidade':'creation', 'criacao de habilidade':'creation', mochila:'backpack', 'mochila!':'backpack', 'corrente de receptáculos':'inventory', 'caixa de receptáculos':'inventory', deuses:'gods'
+    atributos:'attributes', pericias:'skills', perícias:'skills', aprendendo:'learning', 'perícias em quest':'questSkills', 'pericias em quest':'questSkills',
+    quest:'questProgress', 'criação de habilidade':'creation', 'criacao de habilidade':'creation', mochila:'backpack', 'mochila!':'backpack', 'corrente de receptáculos':'inventory', 'caixa de receptáculos':'inventory', deuses:'gods', habilidades:'other', objetivos:'other', 'outras informações':'other', 'trabalhos e valores':'other', itens:'other'
   };
   function setNested(target, path, value) { let o=target;path.slice(0,-1).forEach(k=>o=o[k]||(o[k]={}));o[path.at(-1)]=value; }
   function parse(text) {
@@ -31,6 +32,7 @@
     let section='', lastQuest='',currentCreation=null,creationType='Aprendizado';
     for (const raw of lines) {
       if (!raw || raw==='.') continue;
+      if(raw==='=== DADOS COMPLEMENTARES DA FICHA (JSON) ===')break;
       const lower=raw.toLocaleLowerCase('pt-BR');
       const normalized=lower.replace(/:$/,'').trim();
       if(sectionNames[normalized]){section=sectionNames[normalized];continue;}
@@ -49,8 +51,15 @@
       if(section==='skills'){
         const learning=raw.match(/^(.*?)\s+aprendendo\s*\((\d+)\s*\/\s*(\d+)\)$/i);
         if(learning){result.learning.push({name:learning[1].trim(),current:num(learning[2]),goal:num(learning[3])});continue;}
-        const skill=raw.match(/^(.*?)\s*-\s*(-?\d+)(?:\s*\(([^)]*)\))?$/);
+        const learningFirst=raw.match(/^aprendendo\s+(.+?)\s*\((\d+)\s*\/\s*(\d+)\)$/i);
+        if(learningFirst){result.learning.push({name:learningFirst[1].trim(),current:num(learningFirst[2]),goal:num(learningFirst[3])});continue;}
+        const skill=raw.match(/^(.+?)\s*(?:-|:)\s*(-?\d+)(?:\s*\(([^)]*)\))?$/);
         if(skill){const generalBonus=String(skill[3]||'').match(/^\s*([+-]?\d+(?:[.,]\d+)?)/);result.skills.push({name:skill[1].trim(),value:num(skill[2]),bonus:num(generalBonus?.[1])});continue;}
+      }
+      if(section==='learning'){
+        const learning=raw.match(/^aprendendo\s+(.+?)\s*\((\d+)\s*\/\s*(\d+)\)$/i);
+        if(learning)result.learning.push({name:learning[1].trim(),current:num(learning[2]),goal:num(learning[3])});
+        continue;
       }
       if(section==='questSkills'){
         const q=raw.match(/^(.*?)\s*-\s*(-?\d+)(?:\s*\(\+?(-?\d+)\))?$/);if(q){result.quests.push({name:q[1].trim(),value:num(q[2]),bonus:q[3]===undefined?0:num(q[3]),current:0,goal:10,action:'use'});continue;}
@@ -99,10 +108,10 @@
     if(parsed.learning.length)out.learning=mergeImportedSkills(parsed.learning,out.learning,existingNames);
     if(parsed.quests.length)out.quests=mergeImportedSkills(parsed.quests,out.quests,existingNames);
     if(parsed.creations?.length){out.creations||=[];out.ideas||=[];for(const parsedCreation of parsed.creations){let creation=out.creations.find(item=>skillKey(item.name)===skillKey(parsedCreation.name)),idea=out.ideas.find(item=>skillKey(item.name)===skillKey(parsedCreation.name));if(!idea){idea={...(parsed.ideas||[]).find(item=>skillKey(item.name)===skillKey(parsedCreation.name))};out.ideas.push(idea)}idea.id||=parsedCreation.ideaId;idea.name=parsedCreation.name;idea.status||='Em desenvolvimento';idea.initialRequirement=parsedCreation.requirement;idea.approvedFromImport=true;if(!creation){creation={...parsedCreation};out.creations.push(creation)}else{creation.type='Criação de habilidade';creation.current=parsedCreation.current;creation.requirement=parsedCreation.requirement;creation.progressMode='countdown';creation.initialized=true}creation.ideaId=idea.id}}
-    if(Object.keys(parsed.gods).length)out.gods=parsed.gods;
+    if(Object.keys(parsed.gods).length)out.gods={...(out.gods||{}),...parsed.gods};
     if(Object.keys(parsed.backpack||{}).length)out.backpack={...(out.backpack||{}),...parsed.backpack};
     if(parsed.inventory)out.inventory=parsed.inventory;
     return out;
   }
-  return { parse, apply };
+  return { parse, apply, sameCharacterName };
 });

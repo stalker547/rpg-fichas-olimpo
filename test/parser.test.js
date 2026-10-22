@@ -43,6 +43,32 @@ test('interpreta o formato TXT atual', () => {
   assert.equal(result.gods.Hades, 63);
 });
 
+test('interpreta perícias em linhas com dois-pontos', () => {
+  const names=['Treinamento','Poder divino','Grego','Luta corporal','Artes marciais','Controle','Percepção','Acrobacia','Intuição','Armas médias'];
+  const parsed=parse(`Perícias:\n${names.map(name=>`${name}: 1`).join('\n')}`);
+  assert.deepEqual(parsed.skills.map(skill=>skill.name),names);
+  assert.deepEqual(parsed.skills.map(skill=>skill.value),Array(names.length).fill(1));
+  assert.deepEqual(parsed.skills.map(skill=>skill.bonus),Array(names.length).fill(0));
+});
+
+test('cola trechos da ficha sem apagar perícias e quests omitidas', () => {
+  const original={name:'Thales',profile:{level:7},attributes:{Força:3},skills:[{id:'skill-1',name:'Acrobacia',value:4}],learning:[],quests:[{id:'quest-1',name:'Medicina',value:10,current:3,goal:10}],gods:{Hermes:4}};
+  const first=apply(original,parse('Nome: Thales\nNível: 7\nAtributos:\nForça: 3'));
+  const second=apply(first,parse('.\nPerícias:\nBotânica - 2\nAprendendo controle (1/10)\nPerícias em quest:\nTreinamento - 10'));
+  assert.deepEqual(second.skills.map(skill=>skill.name),['Acrobacia','Botânica']);
+  assert.deepEqual(second.quests.map(skill=>skill.name),['Medicina','Treinamento']);
+  assert.equal(second.quests[0].current,3);
+  assert.equal(second.learning[0].name,'Controle');
+  assert.equal(second.gods.Hermes,4);
+  assert.equal(second.name,'Thales');
+});
+
+test('compara o nome do TXT com o personagem ignorando acentos e pontuação',()=>{
+  const {sameCharacterName}=require('../src/parser.js');
+  assert.equal(sameCharacterName('João','Joao'),true);
+  assert.equal(sameCharacterName('Thales','João'),false);
+});
+
 test('não confunde nome de criação com nome do personagem', () => {
   const result = parse('Nome: Thales\n\nCriação de habilidade:\nAprendizado\nNome: Rastro marcado\nRequisito: 40');
   assert.equal(result.name, 'Thales');
@@ -186,4 +212,11 @@ test('importa os nomes fixos das rações', () => {
   const parsed = parse('Mochila!\nRação de pet: 2\nRação de pet especial: 3\nRação de viagem: 4\nRação de viagem premium: 5');
   const updated = apply({profile:{},backpack:{},attributes:{},skills:[],learning:[],quests:[],gods:{}}, parsed);
   assert.deepEqual([updated.backpack.petFood,updated.backpack.specialPetFood,updated.backpack.travelMeals,updated.backpack.premiumTravelMeals],[2,3,4,5]);
+});
+
+test('lê aprendendo e progresso de quest do TXT exportado sem interpretar o JSON como ficha', () => {
+  const parsed=parse('Nome: Silas\nAprendendo:\nAprendendo Controle (1/10)\nPerícias em quest:\nMedicina - 10\nQuest:\nMedicina\nRequisito: use 4/10\n=== DADOS COMPLEMENTARES DA FICHA (JSON) ===\n{"name":"Outro"}');
+  assert.equal(parsed.name,'Silas');
+  assert.deepEqual(parsed.learning.map(({name,current,goal})=>({name,current,goal})),[{name:'Controle',current:1,goal:10}]);
+  assert.equal(parsed.quests[0].current,4);
 });

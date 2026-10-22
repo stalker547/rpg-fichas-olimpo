@@ -38,6 +38,7 @@ class OnlineClient {
  async assign(id,owner){return this.request(`/characters/${id}/owner`,'PATCH',{ownerUserId:owner})}
  async updateAppearance(appearance){this.user=mapUser(await this.request('/me/appearance','PUT',appearance));return this.user}
  async saveAppearancePreset(name){this.user=mapUser(await this.request('/me/appearance-presets','POST',{name}));return this.user}
+ async overwriteAppearancePreset(id){this.user=mapUser(await this.request(`/me/appearance-presets/${encodeURIComponent(id)}`,'PUT'));return this.user}
  async applyAppearancePreset(id){this.user=mapUser(await this.request(`/me/appearance-presets/${encodeURIComponent(id)}/apply`,'POST'));return this.user}
  async deleteAppearancePreset(id){this.user=mapUser(await this.request(`/me/appearance-presets/${encodeURIComponent(id)}`,'DELETE'));return this.user}
  async uploadBackground(bytes,mime){const response=await this.fetch(`${this.baseUrl}/me/background`,{method:'POST',headers:{Authorization:`Bearer ${this.token}`,'Content-Type':'application/octet-stream','X-Mime-Type':mime},body:bytes,signal:AbortSignal.timeout(30000)});const data=await response.json();if(!response.ok)throw new Error(data.error||'Não foi possível enviar a imagem.');this.user=mapUser(data);return this.user}

@@ -28,10 +28,11 @@ test('writes are not blindly retried after an uncertain network failure',async()
  let attempts=0;const client=new OnlineClient({fetch:async()=>{attempts++;throw Object.assign(new Error('changed'),{code:'ERR_NETWORK_CHANGED'})}});
  await assert.rejects(()=>client.request('/characters/a','PUT',{}),/ERR_NETWORK_CHANGED/);assert.equal(attempts,1);
 });
-test('appearance presets save, load and delete on the signed-in account',async()=>{
+test('appearance presets save, overwrite, load and delete on the signed-in account',async()=>{
  const calls=[];const client=new OnlineClient({fetch:async(url,options)=>{calls.push([new URL(url).pathname,options.method]);return {ok:true,text:async()=>JSON.stringify({id:'user',role:'player',appearance:{presets:[]}})}}});
  await client.saveAppearancePreset('Noite');
+ await client.overwriteAppearancePreset('preset-id');
  await client.applyAppearancePreset('preset-id');
  await client.deleteAppearancePreset('preset-id');
- assert.deepEqual(calls,[['/me/appearance-presets','POST'],['/me/appearance-presets/preset-id/apply','POST'],['/me/appearance-presets/preset-id','DELETE']]);
+ assert.deepEqual(calls,[['/me/appearance-presets','POST'],['/me/appearance-presets/preset-id','PUT'],['/me/appearance-presets/preset-id/apply','POST'],['/me/appearance-presets/preset-id','DELETE']]);
 });
