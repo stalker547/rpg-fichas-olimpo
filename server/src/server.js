@@ -10,6 +10,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {applyRollProgress} from './roll-progress.js';
+import {isAuthorizedPromotion} from './quest-promotion.js';
 import { fileURLToPath } from 'node:url';
 
 const {Pool}=pg;
@@ -63,7 +64,7 @@ function protectedPlayerChange(before,after,{txtImport=false,source='manual'}={}
  const paths=['profile.recognized','profile.divineBonus','name','tableId','txtPasteBlocked',...(!txtImport?['profile.parent','profile.level','profile.xp']:[]),...(!txtImport&&source!=='receptacle-consume'?['gods']:[])];
  const field=paths.find(key=>!same(get(before,key),get(after,key)));if(field)return field;
  const skillName=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,''),oldSkills=before.skills||[],oldSkillIds=new Set(oldSkills.map(s=>s.id).filter(Boolean)),oldSkillNames=new Set(oldSkills.map(s=>skillName(s.name))),newSkills=(after.skills||[]).filter(s=>(s.id&&!oldSkillIds.has(s.id))||(!s.id&&!oldSkillNames.has(skillName(s.name))));
- const promoted=skill=>{const key=skillName(skill.name),quest=(before.quests||[]).find(item=>skillName(item.name)===key),learning=(before.learning||[]).find(item=>skillName(item.name)===key);if(quest&&!(after.quests||[]).some(item=>skillName(item.name)===key)&&Number(skill.value)===Math.min(50,(Number(quest.value)||0)+1))return true;if(learning&&!(after.learning||[]).some(item=>skillName(item.name)===key)&&Number(skill.value)===1)return true;return false},addedSkills=newSkills.filter(skill=>!promoted(skill)).length;
+ const addedSkills=newSkills.filter(skill=>!isAuthorizedPromotion(before,after,skill)).length;
  const spentNewSkills=(Number(before.pointPools?.newSkills)||0)-(Number(after.pointPools?.newSkills)||0),spentSkills=(Number(before.pointPools?.skills)||0)-(Number(after.pointPools?.skills)||0);
  if(spentNewSkills>addedSkills||(!txtImport&&addedSkills>spentNewSkills+Math.floor(Math.max(0,spentSkills)/3)))return 'a criação de perícias sem gastar 1 ponto de nova perícia ou 3 pontos normais por perícia';
  if(!txtImport&&addedSkills>0&&spentNewSkills!==Math.min(Math.max(0,Number(before.pointPools?.newSkills)||0),addedSkills))return 'a prioridade dos pontos de nova perícia';

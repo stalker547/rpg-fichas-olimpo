@@ -6,6 +6,7 @@ const vm=require('node:vm');
 
 const server=fs.readFileSync(path.join(__dirname,'../server/src/server.js'),'utf8');
 const source=server.slice(server.indexOf('function protectedPlayerChange('),server.indexOf('function scoreChanges('));
+const promotion=fs.readFileSync(path.join(__dirname,'../server/src/quest-promotion.js'),'utf8').replace('export function','function');
 const sandbox={
  same:(a,b)=>JSON.stringify(a)===JSON.stringify(b),
  get:(object,key)=>key.split('.').reduce((value,part)=>value?.[part],object),
@@ -13,6 +14,7 @@ const sandbox={
  RpgRules:{capacities:()=>({})}
 };
 vm.createContext(sandbox);
+vm.runInContext(promotion,sandbox);
 vm.runInContext(source,sandbox);
 const check=(before,after)=>sandbox.protectedPlayerChange({pointPools:{},skills:[],quests:[],gods:{},...before},{pointPools:{},skills:[],quests:[],gods:{},...after});
 
@@ -33,4 +35,10 @@ test('jogador não pode renomear, mudar a meta ou excluir um aprendizado incompl
  assert.equal(check(before,{learning:[{id:'a',name:'Grego',current:3,goal:10}]}),'a configuração de aprendizado');
  assert.equal(check(before,{learning:[{id:'a',name:'Controle',current:3,goal:5}]}),'a configuração de aprendizado');
  assert.equal(check(before,{learning:[]}), 'a configuração de aprendizado');
+});
+
+test('editar habilidade não bloqueia quando bônus +7 já concluiu a quest 20',()=>{
+ const before={quests:[{id:'q1',name:'Artes marciais',value:20,bonus:7,current:2,goal:10}],abilities:[{name:'Urutau',useCurrent:4}]};
+ const after={quests:[],skills:[{id:'q1',name:'Artes marciais',value:20,bonus:7}],abilities:[{name:'Urutau',useCurrent:5}]};
+ assert.equal(check(before,after),undefined);
 });
