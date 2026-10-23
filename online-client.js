@@ -34,6 +34,8 @@ class OnlineClient {
   return row;
  }
  async settings(data){return this.request(`/campaigns/${this.campaign.id}/settings`,'PUT',data)}
+ async addPersonalSkill(characterId,skill){return this.request(`/characters/${encodeURIComponent(characterId)}/personal-skills`,'POST',skill)}
+ async registerRoll(characterId,roll){return this.request(`/characters/${encodeURIComponent(characterId)}/rolls`,'POST',roll)}
  async createUser(data){if(data.role==='admin')throw new Error('A campanha possui uma Mestre Principal. Crie uma conta de jogador.');const user=await this.request('/users','POST',data);await this.request(`/campaigns/${this.campaign.id}/members`,'POST',{userId:user.id});return user}
  async assign(id,owner){return this.request(`/characters/${id}/owner`,'PATCH',{ownerUserId:owner})}
  async updateAppearance(appearance){this.user=mapUser(await this.request('/me/appearance','PUT',appearance));return this.user}

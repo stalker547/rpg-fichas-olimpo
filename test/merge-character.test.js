@@ -26,3 +26,14 @@ test('a player edit keeps point notices added by the master while editing',()=>{
  const result=mergeCharacter(base,local,remote);
  assert.equal(result.notes,'Nova anotação');assert.deepEqual(result.pointGrantNotices,remote.pointGrantNotices);
 });
+test('after a roll, pending text and unrelated remote edits merge without overwriting either',()=>{
+ const base={extraInfo:'Antes',profile:{xp:1},skills:[{name:'Controle',value:10}],quests:[],_remoteVersion:3};
+ const remote={...base,extraInfo:'Texto da mestre',profile:{xp:2},skills:[],quests:[{name:'Controle',value:10,current:1,goal:10}],_remoteVersion:4};
+ const local={...base,extraInfo:'Texto da mestre\n\n--- Outra edição preservada ---\n\nTexto do jogador',skills:remote.skills,quests:remote.quests};
+ const result=mergeCharacter(base,local,remote);
+ assert.equal(result.profile.xp,2);
+ assert.deepEqual(result.quests,remote.quests);
+ assert.match(result.extraInfo,/Texto da mestre/);
+ assert.match(result.extraInfo,/Texto do jogador/);
+ assert.equal(result._remoteVersion,4);
+});

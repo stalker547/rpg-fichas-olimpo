@@ -36,3 +36,10 @@ test('appearance presets save, overwrite, load and delete on the signed-in accou
  await client.deleteAppearancePreset('preset-id');
  assert.deepEqual(calls,[['/me/appearance-presets','POST'],['/me/appearance-presets/preset-id','PUT'],['/me/appearance-presets/preset-id/apply','POST'],['/me/appearance-presets/preset-id','DELETE']]);
 });
+test('perícia particular é cadastrada pela rota da ficha, não nas configurações da campanha',async()=>{
+ let route,body;
+ const client=new OnlineClient({fetch:async(url,options)=>{route=new URL(url).pathname;body=JSON.parse(options.body);return {ok:true,text:async()=>'{"id":"hero","version":2}'}}});
+ await client.addPersonalSkill('hero',{name:'Perícia particular',category:'Outras',description:''});
+ assert.equal(route,'/characters/hero/personal-skills');
+ assert.equal(body.name,'Perícia particular');
+});

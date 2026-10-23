@@ -56,6 +56,7 @@ module.exports=function installOnline({ipcMain,net,dialog,shell,clipboard,native
  handle('auth:choose-background',async event=>{const s=session(event),chosen=await dialog.showOpenDialog({properties:['openFile'],filters:[{name:'Imagem',extensions:['png','jpg','jpeg','webp','gif']}]});if(chosen.canceled)return null;const source=chosen.filePaths[0],mime=mimeOf(source);if(!mime)throw new Error('Formato de imagem não permitido.');const user=await s.client.uploadBackground(fs.readFileSync(source),mime);return saveAppearance(s,user)});
  handle('auth:remove-background',async event=>{const s=session(event),user=await s.client.removeBackground();return saveAppearance(s,user)});
  handle('db:load',event=>load(session(event)));
+ handle('db:register-roll',async(event,characterId,roll)=>{const s=session(event),result=await s.client.registerRoll(characterId,roll);return {db:await load(s),advanced:result.advanced,failures:result.failures,duplicate:result.duplicate}});
  handle('auth:create-user',async(event,data)=>{const s=session(event);await s.client.createUser(data);return load(s)});
  handle('auth:assign-character',async(event,id,owner)=>{const s=session(event);await s.client.assign(id,owner);return load(s)});
  handle('auth:delete-user',async(event,id)=>{const s=session(event);await s.client.request(`/users/${id}`,'DELETE');return load(s)});
@@ -100,6 +101,9 @@ module.exports=function installOnline({ipcMain,net,dialog,shell,clipboard,native
   const next=(Array.isArray(skills)?skills:[]).map(skill=>({name:String(skill.name||'').trim(),category:String(skill.category||'Outras').trim()||'Outras',description:String(skill.description||'').trim()})).filter(skill=>skill.name);
   const db=await load(s),baseNames=new Set((db.settings.customSkillCatalog||[]).map(skill=>String(skill.name||'').toLowerCase()));if(new Set(next.map(skill=>skill.name.toLowerCase())).size!==next.length)throw new Error('Não pode haver perícias repetidas.');
   await s.client.settings({...db.settings,customSkillCatalog:next});return load(s);
+ });
+ handle('db:add-character-skill',async(event,characterId,skill)=>{
+  const s=session(event);await s.client.addPersonalSkill(characterId,skill);return load(s);
  });
  handle('db:update-tables',async(event,tables)=>{
   const s=session(event);if(s.client.user.role!=='admin')throw new Error('Somente a mestre pode organizar mesas.');

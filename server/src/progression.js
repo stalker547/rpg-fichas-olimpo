@@ -1,11 +1,15 @@
 // Shared rules: used by the renderer and copied to the API on deployment.
 (function(root){
+ function abilityMaxLevel(type){return type==='passive'?5:type==='active'||!type?10:null}
+ function abilityUseGoal(level){return 20+Math.max(1,Number(level)||1)*5}
+ function abilityAtMax(ability){const maximum=abilityMaxLevel(ability?.type);return maximum!==null&&Math.max(1,Number(ability?.level)||1)>=maximum}
  function skillKey(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'')}
  function questCompletionBonus(tier){return {10:3,20:7,30:11,40:15,50:20}[tier]||0}
  function startSkillQuests(character){
   character.skills||=[];character.quests||=[];let changed=false;
   for(let index=character.skills.length-1;index>=0;index--){
    const skill=character.skills[index],value=Number(skill.value)||0;
+   if([10,20,30,40,50].includes(value)&&Number(skill.bonus)>=questCompletionBonus(value)&&(Number(skill.completedQuestTier)||0)<value){skill.completedQuestTier=value;changed=true}
    if(![10,20,30,40,50].includes(value)||Number(skill.completedQuestTier)>=value)continue;
    if(character.quests.some(quest=>skillKey(quest.name)===skillKey(skill.name)))continue;
    character.quests.push({id:skill.id||`quest-${skillKey(skill.name)}-${value}`,name:skill.name||'Nova perícia',value,bonus:Number(skill.bonus)||0,current:Math.max(0,Number(skill.questEntryProgress)||0),goal:10,successCount:0,failureCount:0});
@@ -25,7 +29,8 @@
   }
   if(completed.length)character.creations=character.creations.filter(c=>!completed.includes(c));
   character.skills||=[];character.quests||=[];
-  const completedQuests=character.quests.filter(q=>Number(q.goal)>0&&Number(q.current)>=Number(q.goal));
+  for(const quest of character.quests)if(!(Number(quest.goal)>0)){quest.goal=10;changed=true}
+  const completedQuests=character.quests.filter(q=>(Number(q.goal)>0&&Number(q.current)>=Number(q.goal))||(questCompletionBonus(Number(q.value))>0&&Number(q.bonus)>=questCompletionBonus(Number(q.value))));
   for(const quest of completedQuests){
    const key=skillKey;
    const existing=character.skills.find(skill=>key(skill.name)===key(quest.name)),nextValue=Math.min(50,Math.max(1,Number(quest.value)||0));
@@ -46,11 +51,16 @@
   }
   if(startSkillQuests(character))changed=true;
   for(const ability of character.abilities||[]){
-   const goal=Math.max(1,Number(ability.useGoal)||25),current=Math.max(0,Number(ability.useCurrent)||0);
-   if(current>=goal){ability.level=Math.max(1,Number(ability.level)||1)+Math.floor(current/goal);ability.useCurrent=current%goal;ability.useGoal=goal;changed=true}
+   const maximum=abilityMaxLevel(ability.type);
+   if(maximum===null){const goal=Math.max(1,Number(ability.useGoal)||25),current=Math.max(0,Number(ability.useCurrent)||0);if(current>=goal){ability.level=Math.max(1,Number(ability.level)||1)+Math.floor(current/goal);ability.useCurrent=current%goal;ability.useGoal=goal;changed=true}continue}
+   let level=Math.min(maximum,Math.max(1,Number(ability.level)||1)),current=Math.max(0,Number(ability.useCurrent)||0),goal=abilityUseGoal(level);
+   if(level!==Number(ability.level)||Number(ability.useGoal)!==goal){ability.level=level;ability.useGoal=goal;changed=true}
+   while(level<maximum&&current>=goal){current-=goal;level+=1;goal=abilityUseGoal(level);changed=true}
+   if(level>=maximum&&current!==0){current=0;changed=true}
+   ability.level=level;ability.useCurrent=current;ability.useGoal=goal;
   }
   return changed;
  }
- root.RpgProgression={applyProgression,startSkillQuests};
+ root.RpgProgression={applyProgression,startSkillQuests,abilityMaxLevel,abilityUseGoal,abilityAtMax};
  if(typeof module!=='undefined'&&module.exports)module.exports=root.RpgProgression;
 })(globalThis);

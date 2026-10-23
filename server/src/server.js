@@ -9,6 +9,7 @@ import pg from 'pg';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import {applyRollProgress} from './roll-progress.js';
 import { fileURLToPath } from 'node:url';
 
 const {Pool}=pg;
@@ -118,6 +119,21 @@ app.get('/campaigns/:id/characters',{preHandler:authenticate},async(request,repl
 app.post('/campaigns/:id/characters',{preHandler:authenticate},async(request,reply)=>{const access=await campaignAccess(request.account,request.params.id);if(!access||request.account.role==='player')return reply.code(403).send({error:'Sem permissão para criar fichas.'});const data=request.body?.data||{},name=String(data.name||request.body?.name||'Novo personagem');const character=(await pool.query('INSERT INTO characters(campaign_id,owner_user_id,name,data) VALUES($1,$2,$3,$4) RETURNING *',[request.params.id,request.body?.ownerUserId||request.account.id,name,data])).rows[0];broadcast(request.params.id,{type:'character.created',characterId:character.id});return character});
 app.post('/campaigns/:id/members',{preHandler:authenticate},async(request,reply)=>{const access=await campaignAccess(request.account,request.params.id);if(!access||request.account.role!=='primary_master'||access.owner_user_id!==request.account.id)return reply.code(403).send({error:'Somente a Mestre Principal da campanha pode adicionar jogadores.'});const user=(await pool.query('SELECT * FROM users WHERE id=$1 AND active=true',[request.body?.userId])).rows[0];if(!user||user.role!=='player')return reply.code(400).send({error:'Jogador inválido.'});await pool.query("INSERT INTO campaign_members(campaign_id,user_id,member_role) VALUES($1,$2,'player') ON CONFLICT(campaign_id,user_id) DO UPDATE SET member_role='player'",[access.id,user.id]);return {ok:true}});
 app.get('/characters/:id',{preHandler:authenticate},async(request,reply)=>{const character=await characterAccess(request.account,request.params.id);if(!character)return reply.code(403).send({error:'Sem acesso à ficha.'});return character});
+app.post('/characters/:id/personal-skills',{preHandler:authenticate},async(request,reply)=>{
+ const character=await characterAccess(request.account,request.params.id,true);
+ if(!character)return reply.code(403).send({error:'Sem acesso à ficha.'});
+ if(character.locked_by&&character.locked_by!==request.account.id&&new Date(character.lock_expires_at)>new Date())return reply.code(423).send({error:'Ficha sendo editada por outro usuário.'});
+ const name=String(request.body?.name||'').trim(),category=String(request.body?.category||'Outras').trim()||'Outras',description=String(request.body?.description||'').trim();
+ if(!name||name.length>80||category.length>60||description.length>500)return reply.code(400).send({error:'Informe nome, categoria e descrição dentro dos limites.'});
+ const existing=Array.isArray(character.data.personalSkillCatalog)?character.data.personalSkillCatalog:[];
+ const key=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').replace(/[^a-z0-9]/g,'');
+ if(existing.length>=100)return reply.code(400).send({error:'Limite de 100 perícias particulares nesta ficha.'});
+ if([...existing,...(character.data.skills||[]),...(character.data.learning||[]),...(character.data.quests||[])].some(skill=>key(skill.name)===key(name)))return reply.code(409).send({error:'Essa perícia já existe nesta ficha.'});
+ const catalog=[...existing,{name,category,description}];
+ const updated=(await pool.query("UPDATE characters SET data=jsonb_set(data,'{personalSkillCatalog}',$2::jsonb,true),version=version+1,updated_at=now() WHERE id=$1 AND version=$3 RETURNING *",[character.id,JSON.stringify(catalog),character.version])).rows[0];
+ if(!updated)return reply.code(409).send({error:'A ficha mudou. Tente cadastrar novamente.'});
+ broadcast(character.campaign_id,{type:'character.updated',characterId:character.id,version:updated.version,by:request.account.name});return updated;
+});
 app.patch('/characters/:id/owner',{preHandler:authenticate},async(request,reply)=>{
  const character=await characterAccess(request.account,request.params.id,true);
  if(!character||request.account.role!=='primary_master'||character.campaign.owner_user_id!==request.account.id)return reply.code(403).send({error:'Somente a Mestre Principal pode vincular fichas.'});
@@ -132,6 +148,24 @@ app.patch('/characters/:id/archive',{preHandler:authenticate},async(request,repl
 app.post('/characters/:id/media',{preHandler:authenticate,bodyLimit:maxGalleryImageBytes},async(request,reply)=>{const character=await characterAccess(request.account,request.params.id,true);if(!character)return reply.code(403).send({error:'Sem acesso à ficha.'});if(!Buffer.isBuffer(request.body)||!request.body.length)return reply.code(400).send({error:'Envie a imagem como application/octet-stream.'});const original=String(request.headers['x-file-name']||'imagem').slice(0,180),mime=String(request.headers['x-mime-type']||'application/octet-stream'),allowed=new Map([['image/png','.png'],['image/jpeg','.jpg'],['image/webp','.webp'],['image/gif','.gif']]),extension=allowed.get(mime);if(!extension)return reply.code(415).send({error:'Formato de imagem não permitido.'});const usage=(await pool.query('SELECT coalesce(sum(size_bytes),0)::bigint AS bytes,max(created_at) AS last_created_at FROM media_files WHERE uploaded_by=$1',[request.account.id])).rows[0],persistedUpload=usage.last_created_at?new Date(usage.last_created_at).getTime():0,lastUpload=Math.max(persistedUpload,mediaUploadTimes.get(request.account.id)||0),waitMs=mediaUploadCooldownMs-(Date.now()-lastUpload),byteLimit=request.account.role==='primary_master'?maxMasterMediaBytes:maxPlayerMediaBytes;if(waitMs>0)return reply.code(429).header('Retry-After',String(Math.ceil(waitMs/1000))).send({error:`Aguarde ${Math.ceil(waitMs/1000)} segundo(s) antes de enviar outra imagem.`});if(Number(usage.bytes)+request.body.length>byteLimit)return reply.code(413).send({error:`Limite de armazenamento de ${request.account.role==='primary_master'?'5 GB':'1 GB'} atingido. Exclua imagens antigas antes de adicionar outras.`});mediaUploadTimes.set(request.account.id,Date.now());const folder=path.join(mediaRoot,String(character.campaign_id),String(character.id));await fs.mkdir(folder,{recursive:true});const id=crypto.randomUUID(),storagePath=path.join(folder,`${id}${extension}`);await fs.writeFile(storagePath,request.body);const media=(await pool.query('INSERT INTO media_files(id,character_id,uploaded_by,original_name,mime_type,storage_path,size_bytes) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,character_id,original_name,mime_type,size_bytes,created_at',[id,character.id,request.account.id,original,mime,storagePath,request.body.length])).rows[0];broadcast(character.campaign_id,{type:'media.created',characterId:character.id,mediaId:id});return reply.code(201).send(media)});
 app.get('/media/:id',{preHandler:authenticate},async(request,reply)=>{const media=(await pool.query('SELECT * FROM media_files WHERE id=$1',[request.params.id])).rows[0];if(!media)return reply.code(404).send({error:'Imagem não encontrada.'});const character=await characterAccess(request.account,media.character_id);if(!character)return reply.code(403).send({error:'Sem acesso à imagem.'});try{return reply.type(media.mime_type).send(await fs.readFile(media.storage_path))}catch{return reply.code(404).send({error:'Arquivo da imagem não encontrado.'})}});
 app.delete('/media/:id',{preHandler:authenticate},async(request,reply)=>{const media=(await pool.query('SELECT * FROM media_files WHERE id=$1',[request.params.id])).rows[0];if(!media)return {ok:true};const character=await characterAccess(request.account,media.character_id,true);if(!character)return reply.code(403).send({error:'Sem acesso à imagem.'});await pool.query('DELETE FROM media_files WHERE id=$1',[media.id]);await fs.rm(media.storage_path,{force:true});broadcast(character.campaign_id,{type:'media.deleted',characterId:character.id,mediaId:media.id});return {ok:true}});
+app.post('/characters/:id/rolls',{preHandler:authenticate},async(request,reply)=>{
+ const access=await characterAccess(request.account,request.params.id,true);
+ if(!access)return reply.code(403).send({error:'Sem permissão para registrar rolagens nesta ficha.'});
+ const client=await pool.connect();
+ try{
+  await client.query('BEGIN');
+  const row=(await client.query('SELECT * FROM characters WHERE id=$1 FOR UPDATE',[request.params.id])).rows[0];
+  if(!row){await client.query('ROLLBACK');return reply.code(404).send({error:'Ficha não encontrada.'})}
+  let progress;
+  try{progress=applyRollProgress(row.data,{...request.body,userName:request.account.name})}
+  catch(error){await client.query('ROLLBACK');return reply.code(400).send({error:error.message})}
+  if(progress.duplicate){await client.query('COMMIT');return {character:row,advanced:[],failures:[],duplicate:true}}
+  const updated=(await client.query('UPDATE characters SET data=$2,version=version+1,updated_at=now() WHERE id=$1 RETURNING *',[row.id,progress.data])).rows[0];
+  await client.query('COMMIT');
+  broadcast(row.campaign_id,{type:'character.updated',characterId:row.id,version:updated.version,by:request.account.name});
+  return {character:updated,advanced:progress.advanced,failures:progress.failures,duplicate:false};
+ }catch(error){await client.query('ROLLBACK');throw error}finally{client.release()}
+});
 app.put('/characters/:id',{preHandler:authenticate},async(request,reply)=>{
  const user=request.account,character=await characterAccess(user,request.params.id,true);
  if(!character)return reply.code(403).send({error:'Sem permissão.'});

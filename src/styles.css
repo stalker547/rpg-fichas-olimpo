@@ -165,6 +165,8 @@ body{background-image:radial-gradient(circle at 80% 0,color-mix(in srgb,var(--gr
 .empty,.roll-no-attribute>div{background:var(--input);border-color:var(--line);color:var(--muted)}
 .ability-type-group+.ability-type-group{border-top-color:var(--line)}
 .new-ability-dialog{width:min(900px,95vw)}.new-ability-dialog h2{margin:0 0 6px}.new-ability-dialog .form-grid{margin-top:20px}.new-ability-dialog textarea{min-height:120px}
+.new-god-dialog{width:min(420px,95vw)}.new-god-dialog .field{margin:18px 0}
+.god-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;min-width:0}.god-head label{overflow-wrap:anywhere}.god-actions{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}.god-actions button{padding:3px 6px;font-size:10px}
 .roll-formula .roll-result.success strong{color:var(--green2)}
 .role-badge,.assigned-characters b,.history-event,.pet-evolution-track .complete{background:color-mix(in srgb,var(--green) 16%,var(--panel2));border-color:var(--green);color:var(--green2)}
 .assigned-characters,.evolution-action{background:var(--panel2)}
@@ -184,8 +186,20 @@ body{background-image:radial-gradient(circle at 80% 0,color-mix(in srgb,var(--gr
 .npc-editor{background:var(--panel2);border-color:var(--line)}
 .npc-profile{border-bottom-color:var(--line)}
 .companion-identity small{color:var(--muted)}
+.companion-editor{background:var(--panel2);border-top-color:var(--line)}
+.companion-card.editing{box-shadow:0 0 0 2px color-mix(in srgb,var(--green) 12%,transparent)}
+.pet-image{background:var(--input);border-color:var(--line)}
+.pet-evolution{border-top-color:var(--line)}
+.pet-training{background:var(--panel);border-color:var(--line)}
+.pet-evolution-track>div{background:var(--panel);border-color:var(--line);color:var(--muted)}
+.pet-evolution-track>div:not(:last-child):after{background:var(--line)}
+.pet-evolution-track span{background:var(--panel2)}
+.pet-forms{border-top-color:var(--line)}
+.pet-form-card{background:linear-gradient(145deg,#1c1725,var(--panel))}
+.evolution-action{background:var(--panel)}
 .goal-progress span{background:linear-gradient(90deg,var(--green),var(--green2),var(--gold))}
 .saved-flash{background:var(--green2)!important;color:var(--bg)!important;box-shadow:0 0 0 4px color-mix(in srgb,var(--green) 20%,transparent)}
 .info-save-panel,.attribute-manager{border-color:var(--line);background:var(--panel2)}
 .resource-counter button,.appearance-background-preview,.photo-preview{border-color:var(--line)}
 .photo-circle-guide span{color:var(--green2)}
+.idea-details>.form-grid.three,.new-ability-dialog .form-grid.three{align-items:start}

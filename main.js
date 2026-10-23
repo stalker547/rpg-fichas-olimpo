@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, clipboard, nativeImage } = require('electron');
+app.disableHardwareAcceleration();
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const path = require('path');
@@ -459,6 +460,16 @@ ipcMain.handle('db:update-skill-catalog', (event, skills) => {
   const next=(Array.isArray(skills)?skills:[]).map(skill=>({name:String(skill.name||'').trim(),category:String(skill.category||'Outras').trim()||'Outras',description:String(skill.description||'').trim()})).filter(skill=>skill.name);
   if(new Set(next.map(skill=>normalizeUsername(skill.name))).size!==next.length)throw new Error('Não pode haver perícias repetidas.');
   db.settings.customSkillCatalog=next;writeDb(db);return visibleDb(db,sessionUser(event,db,true));
+});
+ipcMain.handle('db:add-character-skill', (event, characterId, skill) => {
+  const db=readDb(),user=sessionUser(event,db),character=db.characters.find(item=>item.id===characterId);
+  if(!character||(user.role!=='admin'&&character.ownerUserId!==user.id))throw new Error('Sem acesso à ficha.');
+  const name=String(skill?.name||'').trim(),category=String(skill?.category||'Outras').trim()||'Outras',description=String(skill?.description||'').trim();
+  if(!name||name.length>80||category.length>60||description.length>500)throw new Error('Informe nome, categoria e descrição dentro dos limites.');
+  const catalog=Array.isArray(character.personalSkillCatalog)?character.personalSkillCatalog:[];
+  if(catalog.length>=100)throw new Error('Limite de 100 perícias particulares nesta ficha.');
+  if([...catalog,...(character.skills||[]),...(character.learning||[]),...(character.quests||[])].some(item=>normalizeUsername(item.name)===normalizeUsername(name)))throw new Error('Essa perícia já existe nesta ficha.');
+  character.personalSkillCatalog=[...catalog,{name,category,description}];writeDb(db);return visibleDb(db,user);
 });
 ipcMain.handle('db:update-tables', (event, tables) => {
   const db=readDb(),admin=sessionUser(event,db,true);

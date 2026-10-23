@@ -32,6 +32,13 @@ test('quest concluída volta para perícias no valor da faixa concluída',()=>{
  assert.equal(applyProgression(c),true);assert.equal(c.quests.length,0);assert.equal(c.skills.length,1);assert.equal(c.skills[0].name,'Treinamento');assert.equal(c.skills[0].value,10);assert.equal(c.skills[0].bonus,3);
  assert.equal(applyProgression(c),false);assert.equal(c.skills[0].value,10);
 });
+test('quest antiga sem meta gravada conclui ao chegar em 10',()=>{
+ const c={skills:[],quests:[{name:'Controle',value:10,current:10}],creations:[],ideas:[],abilities:[]};
+ applyProgression(c);
+ assert.equal(c.quests.length,0);
+ assert.equal(c.skills[0].value,10);
+ assert.equal(c.skills[0].bonus,3);
+});
 
 test('quest 20 concluída volta como perícia 20',()=>{
  const c={skills:[],quests:[{id:'medicine',name:'Medicina',value:20,bonus:3,current:10,goal:10}],creations:[],ideas:[],abilities:[]};
@@ -80,6 +87,23 @@ test('quest 20 em andamento mantém +3 até a conclusão',()=>{
 test('nível 10 sem quest concluída não recebe bônus antes da hora',()=>{
  const c={skills:[{name:'Controle',value:10,bonus:0}],quests:[],creations:[],ideas:[],abilities:[]};
  applyProgression(c);assert.equal(c.quests[0].bonus,0);
+});
+
+test('perícia antiga no nível 20 com bônus +7 não repete a quest 20',()=>{
+ const c={skills:[{name:'Controle',value:20,bonus:7}],quests:[],creations:[],ideas:[],abilities:[]};
+ assert.equal(applyProgression(c),true);
+ assert.equal(c.quests.length,0);
+ assert.equal(c.skills[0].completedQuestTier,20);
+ assert.equal(applyProgression(c),false);
+});
+
+test('quest antiga com bônus +7 volta sozinha para perícias no nível 20',()=>{
+ const c={skills:[],quests:[{id:'q1',name:'Controle',value:20,bonus:7,current:3,goal:10}],creations:[],ideas:[],abilities:[]};
+ assert.equal(applyProgression(c),true);
+ assert.equal(c.quests.length,0);
+ assert.equal(c.skills[0].value,20);
+ assert.equal(c.skills[0].bonus,7);
+ assert.equal(c.skills[0].completedQuestTier,20);
 });
 
 test('perícia que alcança 10 entra automaticamente na quest 10',()=>{
