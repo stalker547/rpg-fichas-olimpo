@@ -86,7 +86,7 @@ function protectedPlayerChange(before,after,{txtImport=false,source='manual'}={}
   if(txtImport)continue;
   if(old){
    const normalizedGoal=(Number(old.goal)||0)<1&&Number(item.goal)===10;
-   if(!same(old.name,item.name)||(!same(old.goal,item.goal)&&!normalizedGoal))return 'a configuração de aprendizado';
+   if(skillName(old.name)!==skillName(item.name)||(!same(old.goal,item.goal)&&!normalizedGoal))return 'a configuração de aprendizado';
   }else if(Number(item.goal)!==10||![1,2].includes(Number(item.current)))return 'a configuração de aprendizado';
  }
  if(!txtImport)for(const old of oldLearning){

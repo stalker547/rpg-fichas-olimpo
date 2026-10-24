@@ -37,6 +37,12 @@ test('jogador não pode renomear, mudar a meta ou excluir um aprendizado incompl
  assert.equal(check(before,{learning:[]}), 'a configuração de aprendizado');
 });
 
+test('jogador pode salvar a vida quando o nome do aprendizado ganha maiúscula',()=>{
+ const before={profile:{healthCurrent:85,healthMax:100},learning:[{name:'controle',current:1,goal:10}]};
+ const after={profile:{healthCurrent:86,healthMax:100},learning:[{name:'Controle',current:1,goal:10}]};
+ assert.equal(check(before,after),undefined);
+});
+
 test('editar habilidade não bloqueia quando bônus +7 já concluiu a quest 20',()=>{
  const before={quests:[{id:'q1',name:'Artes marciais',value:20,bonus:7,current:2,goal:10}],abilities:[{name:'Urutau',useCurrent:4}]};
  const after={quests:[],skills:[{id:'q1',name:'Artes marciais',value:20,bonus:7}],abilities:[{name:'Urutau',useCurrent:5}]};
