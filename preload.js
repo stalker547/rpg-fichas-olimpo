@@ -35,6 +35,12 @@ contextBridge.exposeInMainWorld('rpg', {
   exportBackup: () => ipcRenderer.invoke('db:export-backup'),
   restoreBackup: () => ipcRenderer.invoke('db:restore-backup'),
   checkForUpdates: () => ipcRenderer.invoke('app:check-updates'),
+  setPendingChanges: pending => ipcRenderer.send('app:pending-changes', Boolean(pending)),
+  onSaveBeforeClose: callback => ipcRenderer.on('app:save-before-close', async (event, requestId) => {
+    let saved = false;
+    try { saved = Boolean(await callback()); } catch (error) { console.error('Falha ao salvar antes de fechar:', error); }
+    ipcRenderer.send('app:save-before-close-result', requestId, saved);
+  }),
   onUpdateStatus: callback => { const listener=(event,status)=>callback(status);ipcRenderer.on('app:update-status',listener);return ()=>ipcRenderer.removeListener('app:update-status',listener); },
   saveNpc: npc => ipcRenderer.invoke('db:save-npc', npc),
   deleteNpc: id => ipcRenderer.invoke('db:delete-npc', id),

@@ -24,9 +24,21 @@ test('temporary read failure is retried',async()=>{
  let attempts=0;const client=new OnlineClient({fetch:async()=>{attempts++;if(attempts===1)throw Object.assign(new Error('changed'),{code:'ERR_NETWORK_CHANGED'});return {ok:true,text:async()=>'{"ok":true}'}}});
  assert.equal((await client.request('/health')).ok,true);assert.equal(attempts,2);
 });
+test('login usa outra conexão quando a rede do Electron falha',async()=>{
+ let fallbackCalls=0;
+ const client=new OnlineClient({fetch:async()=>{throw Object.assign(new Error('Falha do Electron'),{code:23})},fallbackFetch:async(url)=>{
+  fallbackCalls++;
+  const route=new URL(url).pathname;
+  const data=route==='/auth/login'?{token:'token',user:{id:'player',role:'player'}}:route==='/campaigns'?[{id:'campaign',kind:'real'}]:route.endsWith('/characters')?[]:{};
+  return {ok:true,text:async()=>JSON.stringify(data)};
+ }});
+ const loaded=await client.login({username:'player',password:'test'});
+ assert.equal(loaded.sessionUser.id,'player');
+ assert.equal(fallbackCalls,4);
+});
 test('writes are not blindly retried after an uncertain network failure',async()=>{
- let attempts=0;const client=new OnlineClient({fetch:async()=>{attempts++;throw Object.assign(new Error('changed'),{code:'ERR_NETWORK_CHANGED'})}});
- await assert.rejects(()=>client.request('/characters/a','PUT',{}),/ERR_NETWORK_CHANGED/);assert.equal(attempts,1);
+ let attempts=0,fallbackCalls=0;const client=new OnlineClient({fetch:async()=>{attempts++;throw Object.assign(new Error('changed'),{code:'ERR_NETWORK_CHANGED'})},fallbackFetch:async()=>{fallbackCalls++}});
+ await assert.rejects(()=>client.request('/characters/a','PUT',{}),/ERR_NETWORK_CHANGED/);assert.equal(attempts,1);assert.equal(fallbackCalls,0);
 });
 test('appearance presets save, overwrite, load and delete on the signed-in account',async()=>{
  const calls=[];const client=new OnlineClient({fetch:async(url,options)=>{calls.push([new URL(url).pathname,options.method]);return {ok:true,text:async()=>JSON.stringify({id:'user',role:'player',appearance:{presets:[]}})}}});

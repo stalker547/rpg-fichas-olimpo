@@ -2,18 +2,24 @@ const API_URL='https://olimpo.astratoons.com';
 const {applyProgression}=require('./src/progression');
 const mapUser=user=>({...user,role:user.role==='primary_master'?'admin':user.role});
 class OnlineClient {
- constructor({fetch=globalThis.fetch,baseUrl=API_URL}={}){this.fetch=fetch;this.baseUrl=baseUrl;this.token=null;this.user=null;this.campaign=null;}
+ constructor({fetch=globalThis.fetch,fallbackFetch=null,baseUrl=API_URL}={}){this.fetch=fetch;this.fallbackFetch=fallbackFetch;this.baseUrl=baseUrl;this.token=null;this.user=null;this.campaign=null;}
  async request(route,method='GET',body){
   const headers={};if(this.token)headers.Authorization=`Bearer ${this.token}`;
   if(body!==undefined)headers['Content-Type']='application/json';
   let response,text;const attempts=method==='GET'?3:1;
   for(let attempt=0;attempt<attempts;attempt++)try{
-   response=await this.fetch(this.baseUrl+route,{method,headers,body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(20000)});
+   const options=()=>({method,headers,body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(20000)});
+   try{response=await this.fetch(this.baseUrl+route,options())}
+   catch(error){
+    if(!this.fallbackFetch||(method!=='GET'&&route!=='/auth/login'))throw error;
+    response=await this.fallbackFetch(this.baseUrl+route,options());
+   }
    text=await response.text();break;
   }catch(cause){
    if(attempt+1<attempts)continue;
    const code=String(cause.code||cause.cause?.code||cause.name||'falha de rede').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,60);
-   const error=new Error(`Não foi possível conectar ao servidor online (${code}). Suas alterações continuam na tela; tente salvar novamente.`);error.networkFailure=true;error.cause=cause;throw error;
+   const detail=route==='/auth/login'?'Verifique sua conexão e tente entrar novamente.':'Suas alterações continuam na tela; tente salvar novamente.';
+   const error=new Error(`Não foi possível conectar ao servidor online (${code}). ${detail}`);error.networkFailure=true;error.cause=cause;throw error;
   }
   let data;try{data=JSON.parse(text)}catch{throw new Error('O servidor bloqueou a conexão ou retornou uma resposta inválida. Suas alterações continuam na tela.')}
   if(!response.ok){const error=new Error(data.error||'Não foi possível concluir a operação online.');error.status=response.status;throw error}return data;

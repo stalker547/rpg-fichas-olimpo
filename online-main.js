@@ -33,7 +33,7 @@ module.exports=function installOnline({ipcMain,net,dialog,shell,clipboard,native
  handle('auth:setup',()=>{throw new Error('A instalação online já está configurada. Entre com sua conta da campanha.')});
  handle('auth:login',async(event,data)=>{
   stop(sessions.get(event.sender.id));sessions.delete(event.sender.id);
-  const client=new OnlineClient({fetch:(...args)=>net.fetch(...args)});await client.login(data);
+  const client=new OnlineClient({fetch:(...args)=>net.fetch(...args),fallbackFetch:(...args)=>globalThis.fetch(...args)});await client.login(data);
   const preferenceFile=path.join(DATA_ROOT,`appearance-${client.user.id}.json`);let appearance={};try{appearance=JSON.parse(fs.readFileSync(preferenceFile,'utf8'))}catch{}
   if(Object.keys(client.user.appearance||{}).length)appearance=client.user.appearance;const s={client,sender:event.sender,preferenceFile,presetsFile:path.join(DATA_ROOT,`appearance-presets-${client.user.id}.json`),appearance};sessions.set(event.sender.id,s);
   event.sender.once('destroyed',()=>{stop(s);sessions.delete(event.sender.id)});

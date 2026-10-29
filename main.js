@@ -322,6 +322,68 @@ function createWindow() {
     icon: path.join(APP_ROOT, 'assets', 'app-icon.ico'),
     webPreferences: { preload: path.join(APP_ROOT, 'preload.js'), contextIsolation: true, nodeIntegration: false }
   });
+  let pendingChanges = false, closingApproved = false, closePromptOpen = false, savingBeforeClose = false;
+  const onPendingChanges = (event, pending) => {
+    if (event.sender === win.webContents) pendingChanges = Boolean(pending);
+  };
+  ipcMain.on('app:pending-changes', onPendingChanges);
+  win.on('closed', () => ipcMain.removeListener('app:pending-changes', onPendingChanges));
+  function requestSaveBeforeClose() {
+    return new Promise(resolve => {
+      const requestId = crypto.randomUUID();
+      let finished = false;
+      const finish = saved => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        ipcMain.removeListener('app:save-before-close-result', onResult);
+        resolve(Boolean(saved));
+      };
+      const onResult = (event, id, saved) => {
+        if (event.sender === win.webContents && id === requestId) finish(saved);
+      };
+      ipcMain.on('app:save-before-close-result', onResult);
+      const timer = setTimeout(() => finish(false), 25000);
+      win.webContents.send('app:save-before-close', requestId);
+    });
+  }
+  function showClosePrompt() {
+    if (win.isDestroyed() || closePromptOpen) return;
+    closePromptOpen = true;
+    dialog.showMessageBox(win, {
+      type: 'warning',
+      title: 'Alterações ainda não salvas',
+      message: 'Esta ficha ainda tem alterações pendentes.',
+      detail: 'Você pode voltar e tentar salvar. Se fechar agora, as alterações pendentes podem ser perdidas.',
+      buttons: ['Voltar para a ficha', 'Fechar sem salvar'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true
+    }).then(result => {
+      closePromptOpen = false;
+      if (result.response === 1 && !win.isDestroyed()) {
+        closingApproved = true;
+        win.close();
+      }
+    }).catch(error => {
+      closePromptOpen = false;
+      console.error('Falha ao mostrar confirmação de fechamento:', error);
+    });
+  }
+  win.on('close', event => {
+    if (!pendingChanges || closingApproved) return;
+    event.preventDefault();
+    if (closePromptOpen || savingBeforeClose) return;
+    savingBeforeClose = true;
+    requestSaveBeforeClose().then(() => {
+      savingBeforeClose = false;
+      if (win.isDestroyed()) return;
+      if (!pendingChanges) {
+        closingApproved = true;
+        win.close();
+      } else showClosePrompt();
+    });
+  });
   win.setMenuBarVisibility(false);
   win.loadFile(path.join(APP_ROOT, 'src', 'index.html'));
   return win;

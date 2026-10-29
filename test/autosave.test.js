@@ -9,26 +9,27 @@ function autosaveHarness(saveCharacter){
  const dirtyStart=source.indexOf('function queueAutoSave('),dirtyEnd=source.indexOf('\nfunction toast(',dirtyStart);
  const saveStart=source.indexOf('async function save('),saveEnd=source.indexOf('\nfunction exportText(',saveStart);
  const state={textContent:'',classList:{add(){},remove(){}}},button={textContent:'Salvar alterações',disabled:false};
- const timers=new Map();let nextTimer=0;
+ const timers=new Map(),pendingChanges=[];let nextTimer=0;
  const sandbox={db:{characters:[{id:'hero',name:'Antes',_remoteVersion:1}],settings:{solosByUser:{u1:0}}},draft:{id:'hero',name:'Antes',_remoteVersion:1},currentId:'hero',dirty:false,pendingNote:'',editRevision:0,autoSaveTimer:null,saveInFlight:null,autoSaveErrorNotified:false,savedSharedSolos:0,
   $:selector=>selector==='#save-state'?state:selector==='#save'?button:null,
   setTimeout:callback=>{timers.set(++nextTimer,callback);return nextTimer},clearTimeout:id=>timers.delete(id),
-  window:{rpg:{saveCharacter}},
+  window:{rpg:{saveCharacter,setPendingChanges:pending=>pendingChanges.push(pending)}},
   clone:value=>JSON.parse(JSON.stringify(value)),n:value=>Number(value)||0,
   current(){return sandbox.db.characters.find(item=>item.id===sandbox.currentId)},
   solosOwnerId(){return 'u1'},sharedSolos(){return 0},setSharedSolos(value){sandbox.db.settings.solosByUser.u1=value},
   playerSheetLocked(){return false},render(){},renderSidebar(){},showNewPointGrantToast(){},toast(){},syncSheetLock(){},
   Date};
  vm.createContext(sandbox);vm.runInContext(source.slice(dirtyStart,dirtyEnd)+source.slice(saveStart,saveEnd),sandbox);
- return {sandbox,state,button,timers};
+ return {sandbox,state,button,timers,pendingChanges};
 }
 
 test('edição agenda salvamento e sucesso limpa o estado sem cobrir o formulário',async()=>{
- let saved;const {sandbox,timers}=autosaveHarness(async character=>{saved=character;return {db:{characters:[{...character,_remoteVersion:2}],settings:{solosByUser:{u1:0}}},characterId:'hero',changes:[]}});
+ let saved;const {sandbox,timers,pendingChanges}=autosaveHarness(async character=>{saved=character;return {db:{characters:[{...character,_remoteVersion:2}],settings:{solosByUser:{u1:0}}},characterId:'hero',changes:[]}});
  sandbox.draft.name='Depois';sandbox.markDirty('Nome alterado');
  assert.equal(timers.size,1);assert.equal(sandbox.dirty,true);
  await sandbox.save({automatic:true});
  assert.equal(saved.name,'Depois');assert.equal(sandbox.dirty,false);assert.equal(sandbox.draft._remoteVersion,2);
+ assert.deepEqual(pendingChanges,[true,false]);
  const html=fs.readFileSync(path.join(__dirname,'../src/index.html'),'utf8');
  assert.equal(html.includes('id="dirty-bar"'),false);
 });

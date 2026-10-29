@@ -17,15 +17,15 @@ async function tableBounds(imagePath) {
   let ys=groupLines(horizontal),xs=groupLines(vertical);
   if(ys[0]>3)ys.unshift(0);if(ys.at(-1)<info.height-4)ys.push(info.height-1);
   if(xs[0]>3)xs.unshift(0);if(xs.at(-1)<info.width-4)xs.push(info.width-1);
-  if(xs.length<3||ys.length<3)throw new Error('Não consegui identificar as colunas Hab e Efeito. Use uma imagem com a tabela inteira.');
+  if(xs.length<3||ys.length<2)throw new Error('Não consegui identificar as duas colunas da habilidade. Envie a linha inteira, com nome à esquerda e efeito à direita.');
   const columns=xs.length>=4?[xs[0],xs[1],xs.at(-2),xs.at(-1)]:[xs[0],xs[1],xs.at(-1)];
-  return { width:info.width,height:info.height,xs:columns,ys,hasLevel:columns.length===4 };
+  return { width:info.width,height:info.height,xs:columns,ys,hasLevel:columns.length===4,hasHeader:ys.length>=3 };
 }
 
 async function cropCell(imagePath,left,top,right,bottom) {
   const pad=4;
   return sharp(imagePath).extract({left:Math.max(0,left+pad),top:Math.max(0,top+pad),width:Math.max(1,right-left-pad*2),height:Math.max(1,bottom-top-pad*2)})
-    .grayscale().normalize().resize({width:Math.max(360,(right-left-pad*2)*3),kernel:'lanczos3'}).threshold(175).png().toBuffer();
+    .grayscale().normalize().resize({width:Math.max(360,(right-left-pad*2)*3),kernel:'lanczos3'}).threshold(140).png().toBuffer();
 }
 
 function cleanText(text) { return String(text||'').replace(/\s*\n\s*/g,' ').replace(/\s+/g,' ').replace(/^[|:;.,_\-\s]+|[|_\s]+$/g,'').trim(); }
@@ -58,7 +58,7 @@ async function readAbilityTable(imagePath, options) {
   const worker=await createWorker('por',OEM.LSTM_ONLY,options);
   const abilities=[];
   try{
-    for(let row=1;row<bounds.ys.length-1;row++){
+    for(let row=bounds.hasHeader?1:0;row<bounds.ys.length-1;row++){
       const top=bounds.ys[row],bottom=bounds.ys[row+1];
       if(bottom-top<10)continue;
       const buffers=await Promise.all([
