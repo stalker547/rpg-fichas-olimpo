@@ -15,6 +15,16 @@ test('rolagem conclui quest 10 e preserva outras informações',async()=>{
  assert.equal(result.data.rollHistory.length,1);
  assert.equal(latest.quests[0].current,9);
 });
+test('quest 10 online soma dois no sucesso e um na falha',async()=>{
+ const {applyRollProgress}=await load();
+ const quest={id:'q10',name:'Armas a distância',value:10,current:8,goal:10};
+ const success=applyRollProgress({skills:[],quests:[quest],rollHistory:[]},roll({items:[{name:quest.name,kind:'quest'}]}));
+ assert.equal(success.data.quests.length,0);
+ assert.equal(success.data.skills[0].value,10);
+ assert.equal(success.data.skills[0].bonus,3);
+ const failure=applyRollProgress({skills:[],quests:[quest],rollHistory:[]},roll({outcome:'failure',items:[{name:quest.name,kind:'quest'}]}));
+ assert.equal(failure.data.quests[0].current,9);
+});
 test('rolagem finaliza quest antiga sem meta gravada',async()=>{
  const {applyRollProgress}=await load();
  const latest={quests:[{name:'Controle',value:10,current:9}],skills:[],rollHistory:[]};
@@ -74,7 +84,7 @@ test('rolagem marcada como perícia avança quest iniciada no servidor',async()=
  const current={skills:[{name:'Controle',value:10,bonus:0}],quests:[],rollHistory:[]};
  const result=applyRollProgress(current,roll({items:[{name:'Controle',kind:'skill'}]}));
  assert.equal(result.data.skills.length,0);
- assert.equal(result.data.quests[0].current,1);
+ assert.equal(result.data.quests[0].current,2);
  assert.equal(result.data.rollHistory.length,1);
 });
 
