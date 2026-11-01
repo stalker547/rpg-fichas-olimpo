@@ -9,6 +9,7 @@ test('a mestre vê apenas ideias enviadas, aprovadas ou em desenvolvimento',asyn
  assert.deepEqual(hidePlayerDrafts(row,master).data.ideas.map(idea=>idea.status),['Pedido para a mestre','Aprovada','Em desenvolvimento']);
  assert.equal(hidePlayerDrafts(row,{id:'player',role:'player'}),row);
  assert.equal(row.data.ideas.length,5);
+ assert.deepEqual(hidePlayerDrafts({...row,owner_user_id:'master'},master).data.ideas.map(idea=>idea.status),['Pedido para a mestre','Aprovada','Em desenvolvimento']);
 });
 
 test('salvar a ficha pela mestre preserva rascunhos e ideias recusadas do jogador',async()=>{
