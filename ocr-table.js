@@ -9,7 +9,7 @@ function groupLines(indices) {
 
 async function tableBounds(imagePath) {
   const { data, info } = await sharp(imagePath).removeAlpha().raw().toBuffer({ resolveWithObject:true });
-  const bright=(x,y)=>{const i=(y*info.width+x)*info.channels;return data[i]>215&&data[i+1]>225&&data[i+2]>205;};
+  const bright=(x,y)=>{const i=(y*info.width+x)*info.channels;return data[i]>190&&data[i+1]>220&&data[i+2]>175;};
   const horizontal=[];
   for(let y=0;y<info.height;y++){let count=0;for(let x=0;x<info.width;x++)if(bright(x,y))count++;if(count/info.width>.68)horizontal.push(y);}
   const vertical=[];
