@@ -75,12 +75,14 @@ module.exports=function installOnline({ipcMain,net,dialog,shell,clipboard,native
   fs.mkdirSync(DATA_ROOT,{recursive:true});
   const pendingFile=path.join(DATA_ROOT,`pending-online-${s.client.user.id}-${String(character.id).replace(/[^a-zA-Z0-9_-]/g,'_')}.json`);
   fs.writeFileSync(pendingFile,JSON.stringify({savedAt:new Date().toISOString(),character,settings}),'utf8');
-  let before=s.versions?.get(`${character.id}:${character._remoteVersion}`)||s.snapshot?.characters.find(c=>c.id===character.id);
-  if(character._remoteVersion&&before){const latest=(await s.client.load()).characters.find(c=>c.id===character.id);if(!latest)throw new Error('A ficha foi removida ou você não tem mais acesso.');if(latest._remoteVersion!==character._remoteVersion){character=mergeCharacter(before,character,latest,{preferRemote:s.client.user.role==='player'?['receptacleCapacity']:[]});before=latest}}
-  const changes=changesBetween(before,character);
-  character.history=structuredClone(character.history||before?.history||[]);if(changes.length)character.history.unshift({id:require('node:crypto').randomUUID(),at:new Date().toISOString(),note:character.changeNote||'Alteração manual',changes,userName:s.client.user.name,userId:s.client.user.id,userRole:s.client.user.role});
-  if(character._remoteVersion)await uploadPaths(s,character.id,character);
-  const row=await s.client.save(character);
+  let before=s.versions?.get(`${character.id}:${character._remoteVersion}`)||s.snapshot?.characters.find(c=>c.id===character.id),changes,row;
+  for(let attempt=0;attempt<3;attempt++){
+   if(character._remoteVersion&&before){const latest=(await s.client.load()).characters.find(c=>c.id===character.id);if(!latest)throw new Error('A ficha foi removida ou você não tem mais acesso.');if(latest._remoteVersion!==character._remoteVersion){character=mergeCharacter(before,character,latest,{preferRemote:s.client.user.role==='player'?['receptacleCapacity']:[]});before=latest}}
+   changes=changesBetween(before,character);
+   character.history=structuredClone(before?.history||character.history||[]);if(changes.length)character.history.unshift({id:require('node:crypto').randomUUID(),at:new Date().toISOString(),note:character.changeNote||'Alteração manual',changes,userName:s.client.user.name,userId:s.client.user.id,userRole:s.client.user.role});
+   if(character._remoteVersion)await uploadPaths(s,character.id,character);
+   try{row=await s.client.save(character);break}catch(error){if(error.status!==409||attempt===2||!character._remoteVersion)throw error}
+  }
   if(!character._remoteVersion){character.id=row.id;character._remoteVersion=row.version;await uploadPaths(s,row.id,character);await s.client.save(character)}
   if(s.client.user.role==='admin'&&settings&&JSON.stringify(settings)!==JSON.stringify(s.snapshot?.settings))await s.client.settings(settings);
   if(s.client.user.role==='player'&&settings){const id=s.client.user.id,amount=Number(settings.solosByUser?.[id])||0;if(amount!==(Number(s.snapshot?.settings?.solosByUser?.[id])||0))await s.client.request(`/campaigns/${s.client.campaign.id}/solos`,'PATCH',{amount})}
