@@ -20,6 +20,9 @@ const sessions = new Map();
 // Builds instaladas sempre usam a VPS, mesmo que recebam --local por engano.
 const LOCAL_MODE = !app.isPackaged && process.argv.includes('--local');
 let manualUpdateRequested = false, manualUpdateErrorReported = false;
+function logLocalAuth(stage, detail) {
+  if (LOCAL_MODE) console.log(`[login local] ${new Date().toLocaleString('pt-BR')} | ${stage}${detail ? ` | ${detail}` : ''}`);
+}
 
 function credentialsFile(){return path.join(app.getPath('userData'),'remembered-login.json')}
 function loadRememberedCredentials(){
@@ -322,6 +325,14 @@ function createWindow() {
     icon: path.join(APP_ROOT, 'assets', 'app-icon.ico'),
     webPreferences: { preload: path.join(APP_ROOT, 'preload.js'), contextIsolation: true, nodeIntegration: false }
   });
+  if (LOCAL_MODE && typeof win.webContents.on === 'function') {
+    win.webContents.on('console-message', (...args) => {
+      const details = args[1] && typeof args[1] === 'object' ? args[1] : { level: args[1], message: args[2], lineNumber: args[3], sourceId: args[4] };
+      if (details.level === 'error' || details.level === 3) logLocalAuth('Erro na tela', `${details.message} (${details.sourceId || 'app'}:${details.lineNumber || '?'})`);
+    });
+    win.webContents.on('render-process-gone', (event, details) => logLocalAuth('Tela encerrada', details.reason));
+    win.webContents.on('did-fail-load', (event, code, description) => logLocalAuth('Falha ao carregar tela', `${code}: ${description}`));
+  }
   let pendingChanges = false, closingApproved = false, closePromptOpen = false, savingBeforeClose = false;
   const onPendingChanges = (event, pending) => {
     if (event.sender === win.webContents) pendingChanges = Boolean(pending);
@@ -429,7 +440,16 @@ ipcMain.handle('app:check-updates',async event=>{if(!app.isPackaged){setTimeout(
 ipcMain.handle('auth:remembered-login',()=>loadRememberedCredentials());
 ipcMain.handle('auth:save-remembered-login',(event,data)=>saveRememberedCredentials(data));
 
-ipcMain.handle('auth:status', () => ({ hasUsers:(readDb().settings.authUsers||[]).length>0, online:false, local:true }));
+ipcMain.handle('auth:status', () => {
+  try {
+    const hasUsers=(readDb().settings.authUsers||[]).length>0;
+    logLocalAuth('Banco local carregado', `contas cadastradas: ${hasUsers ? 'sim' : 'não'}`);
+    return { hasUsers, online:false, local:true };
+  } catch (error) {
+    logLocalAuth('Erro ao abrir banco local', error.message);
+    throw error;
+  }
+});
 ipcMain.handle('auth:setup', (event, data) => {
   const db=readDb();if((db.settings.authUsers||[]).length)throw new Error('A conta da mestre já foi criada.');
   const username=normalizeUsername(data.username),password=String(data.password||'');
@@ -439,9 +459,18 @@ ipcMain.handle('auth:setup', (event, data) => {
   db.settings.authUsers=[user];for(const character of db.characters||[])character.ownerUserId=user.id;writeDb(db);sessions.set(event.sender.id,user.id);return visibleDb(db,user);
 });
 ipcMain.handle('auth:login', (event, data) => {
-  const db=readDb(),username=normalizeUsername(data.username),user=(db.settings.authUsers||[]).find(item=>item.username===username);
-  if(!user||!passwordMatches(data.password,user))throw new Error('Usuário ou senha incorretos.');
-  sessions.set(event.sender.id,user.id);return visibleDb(db,user);
+  const username=normalizeUsername(data?.username);
+  try {
+    const db=readDb(),user=(db.settings.authUsers||[]).find(item=>item.username===username);
+    if(!user){logLocalAuth('Login recusado', `usuário ${username || '(vazio)'} não cadastrado neste banco`);throw new Error('Usuário ou senha incorretos.');}
+    if(!passwordMatches(data?.password,user)){logLocalAuth('Login recusado', `senha incorreta para ${username}`);throw new Error('Usuário ou senha incorretos.');}
+    sessions.set(event.sender.id,user.id);
+    logLocalAuth('Login aceito', `usuário ${username}`);
+    return visibleDb(db,user);
+  } catch (error) {
+    if(error.message!=='Usuário ou senha incorretos.')logLocalAuth('Erro durante login', error.message);
+    throw error;
+  }
 });
 ipcMain.handle('auth:logout', event => { sessions.delete(event.sender.id);return true; });
 ipcMain.handle('auth:change-password', (event, data) => {const db=readDb(),user=sessionUser(event,db),current=String(data?.currentPassword||''),next=String(data?.newPassword||'');if(!passwordMatches(current,user))throw new Error('A senha atual está incorreta.');if(next.length<4)throw new Error('A nova senha precisa ter pelo menos 4 caracteres.');const record=passwordRecord(next);user.passwordSalt=record.salt;user.passwordHash=record.hash;writeDb(db);return true;});
@@ -503,6 +532,13 @@ ipcMain.handle('auth:delete-user', (event, userId) => {
   db.settings.authUsers=(db.settings.authUsers||[]).filter(user=>user.id!==userId);for(const character of db.characters||[])if(character.ownerUserId===userId)character.ownerUserId=admin.id;if(db.settings.solosByUser)delete db.settings.solosByUser[userId];writeDb(db);return visibleDb(db,admin);
 });
 ipcMain.handle('db:load', event => {const db=readDb(),user=sessionUser(event,db);return visibleDb(db,user);});
+ipcMain.handle('db:dismiss-point-grants', (event, characterId, noticeIds) => {
+ const db=readDb(),user=sessionUser(event,db),character=db.characters.find(item=>item.id===characterId);
+ if(!character||user.role!=='admin'&&character.ownerUserId!==user.id)throw new Error('Sem acesso à ficha.');
+ const ids=new Set(Array.isArray(noticeIds)?noticeIds.filter(id=>typeof id==='string'):[]);
+ character.pointGrantNotices=(character.pointGrantNotices||[]).filter(notice=>!ids.has(notice.id));
+ writeDb(db);return visibleDb(db,user);
+});
 ipcMain.handle('db:update-attributes', (event, names) => {
   const db=readDb(),admin=sessionUser(event,db,true),before=Array.isArray(db.settings.attributeNames)?db.settings.attributeNames:[];
   const next=(Array.isArray(names)?names:[]).map(value=>String(value||'').trim()).filter(Boolean);
@@ -516,6 +552,23 @@ ipcMain.handle('db:update-attributes', (event, names) => {
     character.updatedAt=new Date().toISOString();
   }
   db.settings.attributeNames=next;writeDb(db);return visibleDb(db,admin);
+});
+ipcMain.handle('db:update-default-gods', (event, gods) => {
+  const db=readDb(),admin=sessionUser(event,db,true);
+  const entries=Object.entries(gods||{}).map(([name,value])=>[String(name).trim(),Number(value)]);
+  if(entries.length>100||entries.some(([name,value])=>!name||name.length>80||!Number.isFinite(value))||new Set(entries.map(([name])=>normalizeUsername(name))).size!==entries.length)throw new Error('Informe nomes de deuses únicos e afinidades numéricas.');
+  db.settings.defaultGods=Object.fromEntries(entries);
+  writeDb(db);
+  return visibleDb(db,admin);
+});
+ipcMain.handle('db:update-new-sheet-defaults', (event, defaults) => {
+  const db=readDb(),admin=sessionUser(event,db,true);
+  const attributes=Number(defaults?.attributes),newSkills=Number(defaults?.newSkills);
+  const entries=Object.entries(defaults?.gods||{}).map(([name,value])=>[String(name).trim(),Number(value)]);
+  if(!Number.isSafeInteger(attributes)||attributes<0||attributes>1000||!Number.isSafeInteger(newSkills)||newSkills<0||newSkills>1000)throw new Error('Informe pontos iniciais entre 0 e 1000.');
+  if(entries.length>100||entries.some(([name,value])=>!name||name.length>80||!Number.isFinite(value))||new Set(entries.map(([name])=>normalizeUsername(name))).size!==entries.length)throw new Error('Informe nomes de deuses únicos e afinidades numéricas.');
+  db.settings.newSheetDefaults={attributes,newSkills};db.settings.defaultGods=Object.fromEntries(entries);
+  writeDb(db);return visibleDb(db,admin);
 });
 ipcMain.handle('db:update-skill-catalog', (event, skills) => {
   const db=readDb();sessionUser(event,db,true);

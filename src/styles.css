@@ -143,6 +143,7 @@ body{background-image:radial-gradient(circle at 80% 0,color-mix(in srgb,var(--gr
 .receptacle.equipped{border-color:var(--green);background:linear-gradient(145deg,color-mix(in srgb,var(--green) 12%,var(--panel2)),var(--panel2));box-shadow:0 0 0 2px color-mix(in srgb,var(--green) 12%,transparent)}
 .receptacle.equipped .receptacle-state>span,.receptacle-group-title span,.receptacle-result,.admin-points span:after{color:var(--green2)}
 .receptacle-tabs button.active,.receptacle-group-title span,.receptacle-result,.history-event{background:color-mix(in srgb,var(--green) 16%,var(--panel2));color:var(--green2);border-color:var(--green)}
+.roll-progress-note{display:block;color:var(--accent2);font-weight:700;margin-top:5px}
 .receptacle-tabs button:hover{color:var(--green2)}
 .receptacle.stored .receptacle-result,.stored-group .receptacle-group-title span{background:var(--panel2);color:var(--muted)}
 .resource-plus,.attribute-stepper button:not(:first-child){background:color-mix(in srgb,var(--green) 20%,var(--input));border-color:var(--green);color:var(--green2)}
@@ -204,3 +205,8 @@ body{background-image:radial-gradient(circle at 80% 0,color-mix(in srgb,var(--gr
 .resource-counter button,.appearance-background-preview,.photo-preview{border-color:var(--line)}
 .photo-circle-guide span{color:var(--green2)}
 .idea-details>.form-grid.three,.new-ability-dialog .form-grid.three{align-items:start}
+.default-gods-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin:16px 0}
+.default-god-row{display:grid;grid-template-columns:minmax(0,1fr) 78px auto;gap:8px;align-items:center}
+.default-god-row input{min-width:0}
+.default-god-row input{background:var(--input);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:9px}
+#sheet-defaults-modal .attribute-manager{margin:0 0 14px}

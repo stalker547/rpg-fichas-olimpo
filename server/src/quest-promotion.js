@@ -6,8 +6,9 @@ export function isAuthorizedPromotion(before,after,skill){
  const quest=(before.quests||[]).find(item=>skillName(item.name)===name);
  const learning=(before.learning||[]).find(item=>skillName(item.name)===name);
  if(quest&&!(after.quests||[]).some(item=>skillName(item.name)===name)){
-  const tier=Number(quest.value)||0,required=completionBonus[tier];
+  const tier=Math.max(10,Number(quest.value)||0),required=completionBonus[tier];
   if(Number(skill.value)===Math.min(50,tier+1))return true;
+  if(Number(quest.current)>=Math.max(1,Number(quest.goal)||10)&&Number(skill.value)===tier&&Number(skill.bonus)>=required)return true;
   if(required&&Number(quest.bonus)>=required&&Number(skill.value)===tier&&Number(skill.bonus)>=required)return true;
  }
  return Boolean(learning&&!(after.learning||[]).some(item=>skillName(item.name)===name)&&Number(skill.value)===1);

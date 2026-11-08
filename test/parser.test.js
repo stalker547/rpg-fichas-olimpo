@@ -43,6 +43,11 @@ test('interpreta o formato TXT atual', () => {
   assert.equal(result.gods.Hades, 63);
 });
 
+test('quest sem seção de perícias em quest assume o nível 10', () => {
+  const result=parse('Quest\nPercepção\nRequisito: use 6/10');
+  assert.deepEqual(result.quests.map(q=>[q.name,q.value,q.current,q.goal]),[['Percepção',10,6,10]]);
+});
+
 test('interpreta perícias em linhas com dois-pontos', () => {
   const names=['Treinamento','Poder divino','Grego','Luta corporal','Artes marciais','Controle','Percepção','Acrobacia','Intuição','Armas médias'];
   const parsed=parse(`Perícias:\n${names.map(name=>`${name}: 1`).join('\n')}`);

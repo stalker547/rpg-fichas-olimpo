@@ -36,6 +36,7 @@
       "online-client.js",
       "merge-character.js",
       "appearance-style.js",
+      "sheet-defaults-file.js",
       "storage.js",
       "ocr-table.js",
       "preload.js",

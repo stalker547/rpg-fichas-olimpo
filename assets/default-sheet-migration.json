@@ -1,0 +1,20 @@
+{
+  "format": "rpg-ficha-padrao",
+  "version": 1,
+  "attributes": 10,
+  "newSkills": 10,
+  "gods": {
+    "Afrodite": 40,
+    "Apolo": 40,
+    "Ares": 40,
+    "Ártemis": 40,
+    "Atena": 40,
+    "Hades": 30,
+    "Hefestos": 40,
+    "Hermes": 50,
+    "Héstia": 40,
+    "Nix": 30,
+    "Poseidon": 30,
+    "Zeus": 30
+  }
+}

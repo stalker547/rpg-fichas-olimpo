@@ -126,3 +126,10 @@ test('quest concluída não reentra até alcançar a próxima faixa',()=>{
  applyProgression(c);assert.equal(c.quests.length,0);assert.equal(c.skills[0].value,10);assert.equal(c.skills[0].completedQuestTier,10);assert.equal(applyProgression(c),false);
  c.skills[0].value=20;assert.equal(applyProgression(c),true);assert.equal(c.skills.length,0);assert.equal(c.quests[0].value,20);
 });
+
+test('quest antiga importada com valor zero conclui como nível 10 e bônus +3',()=>{
+ const c={skills:[],quests:[{id:'q1',name:'Percepção',value:0,current:10,goal:10}],creations:[],ideas:[],abilities:[]};
+ applyProgression(c);
+ assert.equal(c.quests.length,0);
+ assert.deepEqual([c.skills[0].value,c.skills[0].bonus,c.skills[0].completedQuestTier],[10,3,10]);
+});

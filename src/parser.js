@@ -66,7 +66,7 @@
       }
       if(section==='questProgress'){
         const req=raw.match(/^Requisito\s*:\s*(?:(use|acerte)\s*)?(\d+)\s*\/\s*(\d+)(?:\s*\([^)]*\))?\s*[.!]?$/i);
-        if(req && lastQuest){const questName=lastQuest.replace(/\s*\([^)]*\)\s*$/,'').trim();let q=result.quests.find(x=>skillKey(x.name)===skillKey(questName));if(!q){q={name:questName,value:0,current:0,goal:10,action:'use'};result.quests.push(q);}q.current=num(req[2]);q.goal=num(req[3]);q.action=num(q.value)>=20?'use':String(req[1]||'use').toLocaleLowerCase('pt-BR');continue;}
+        if(req && lastQuest){const questName=lastQuest.replace(/\s*\([^)]*\)\s*$/,'').trim();let q=result.quests.find(x=>skillKey(x.name)===skillKey(questName));if(!q){q={name:questName,value:10,current:0,goal:10,action:'use'};result.quests.push(q);}q.current=num(req[2]);q.goal=num(req[3]);q.action=num(q.value)>=20?'use':String(req[1]||'use').toLocaleLowerCase('pt-BR');continue;}
         lastQuest=raw;continue;
       }
       if(section==='creation'){

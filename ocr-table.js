@@ -15,8 +15,8 @@ async function tableBounds(imagePath) {
   const vertical=[];
   for(let x=0;x<info.width;x++){let count=0;for(let y=0;y<info.height;y++)if(bright(x,y))count++;if(count/info.height>.68)vertical.push(x);}
   let ys=groupLines(horizontal),xs=groupLines(vertical);
-  if(ys[0]>3)ys.unshift(0);if(ys.at(-1)<info.height-4)ys.push(info.height-1);
-  if(xs[0]>3)xs.unshift(0);if(xs.at(-1)<info.width-4)xs.push(info.width-1);
+  if(ys[0]>10)ys.unshift(0);if(ys.at(-1)<info.height-4)ys.push(info.height-1);
+  if(xs[0]>10)xs.unshift(0);if(xs.at(-1)<info.width-4)xs.push(info.width-1);
   if(xs.length<3||ys.length<2)throw new Error('Não consegui identificar as duas colunas da habilidade. Envie a linha inteira, com nome à esquerda e efeito à direita.');
   const columns=xs.length>=4?[xs[0],xs[1],xs.at(-2),xs.at(-1)]:[xs[0],xs[1],xs.at(-1)];
   return { width:info.width,height:info.height,xs:columns,ys,hasLevel:columns.length===4,hasHeader:ys.length>=3 };
@@ -58,7 +58,7 @@ async function readAbilityTable(imagePath, options) {
   const worker=await createWorker('por',OEM.LSTM_ONLY,options);
   const abilities=[];
   try{
-    for(let row=bounds.hasHeader?1:0;row<bounds.ys.length-1;row++){
+    for(let row=0;row<bounds.ys.length-1;row++){
       const top=bounds.ys[row],bottom=bounds.ys[row+1];
       if(bottom-top<10)continue;
       const buffers=await Promise.all([

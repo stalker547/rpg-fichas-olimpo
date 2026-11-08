@@ -33,7 +33,7 @@
   const completedQuests=character.quests.filter(q=>(Number(q.goal)>0&&Number(q.current)>=Number(q.goal))||(questCompletionBonus(Number(q.value))>0&&Number(q.bonus)>=questCompletionBonus(Number(q.value))));
   for(const quest of completedQuests){
    const key=skillKey;
-   const existing=character.skills.find(skill=>key(skill.name)===key(quest.name)),nextValue=Math.min(50,Math.max(1,Number(quest.value)||0));
+   const existing=character.skills.find(skill=>key(skill.name)===key(quest.name)),nextValue=Math.min(50,Math.max(10,Number(quest.value)||0));
    const bonus=Math.max(Number(quest.bonus)||0,questCompletionBonus(nextValue));
    if(existing){existing.value=Math.max(Number(existing.value)||0,nextValue);existing.bonus=Math.max(Number(existing.bonus)||0,bonus);existing.completedQuestTier=Math.max(Number(existing.completedQuestTier)||0,nextValue)}
    else character.skills.push({id:quest.id||`quest-complete-${key(quest.name)}`,name:quest.name||'Nova perícia',value:nextValue,bonus,successCount:0,failureCount:0,completedQuestTier:nextValue});

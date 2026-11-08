@@ -14,15 +14,18 @@ test('quest 10 gains two on success and one on failure; later quests use counter
  for(const [value,required] of [[20,1],[30,2]]){const quest={value,current:0,goal:10};for(let i=1;i<required;i++)assert.equal(rules.advanceQuest(quest,true),0);assert.equal(rules.advanceQuest(quest,true),1);assert.equal(quest.current,1);assert.equal(quest.successCount,0)}
  for(const [value,required] of [[40,3],[50,4]]){const quest={value,current:0,goal:10};assert.equal(rules.advanceQuest(quest,true),0);for(let i=1;i<required;i++)assert.equal(rules.advanceQuest(quest,true,true),0);assert.equal(rules.advanceQuest(quest,true,true),1)}
 });
-test('quest accumulates failures automatically without visible configuration',()=>{
- for(const [value,required] of [[20,2],[30,3],[40,4],[50,5]]){const quest={value,current:0,goal:10,failuresPerProgress:0};for(let i=1;i<required;i++)assert.equal(rules.advanceQuest(quest,false,true),0);assert.equal(rules.advanceQuest(quest,false,true),1);assert.equal(quest.current,1);assert.equal(quest.failureCount,0)}
+test('quests 20 e 30 não avançam com falhas',()=>{
+ for(const value of [20,30]){const quest={value,current:4,goal:10,failureCount:2};for(let i=0;i<5;i++)assert.equal(rules.advanceQuest(quest,false),0);assert.equal(quest.current,4);assert.equal(quest.failureCount,0)}
+});
+test('quests 40 e 50 acumulam falhas',()=>{
+ for(const [value,required] of [[40,4],[50,5]]){const quest={value,current:0,goal:10,failuresPerProgress:0};for(let i=1;i<required;i++)assert.equal(rules.advanceQuest(quest,false,true),0);assert.equal(rules.advanceQuest(quest,false,true),1);assert.equal(quest.current,1);assert.equal(quest.failureCount,0)}
 });
 test('quest success and failure counters remain independent',()=>{
- const quest={value:30,current:0,goal:10};
- assert.equal(rules.advanceQuest(quest,true),0);assert.equal(quest.successCount,1);
+ const quest={value:40,current:0,goal:10};
+ assert.equal(rules.advanceQuest(quest,true,true),0);assert.equal(quest.successCount,1);
  assert.equal(rules.advanceQuest(quest,false),0);assert.equal(rules.advanceQuest(quest,false),0);assert.equal(quest.failureCount,2);
- assert.equal(rules.advanceQuest(quest,true),1);assert.equal(quest.successCount,0);assert.equal(quest.failureCount,2);assert.equal(quest.current,1);
- assert.equal(rules.advanceQuest(quest,false),1);assert.equal(quest.failureCount,0);assert.equal(quest.current,2);
+ assert.equal(rules.advanceQuest(quest,true,true),0);assert.equal(rules.advanceQuest(quest,true,true),1);assert.equal(quest.successCount,0);assert.equal(quest.failureCount,2);assert.equal(quest.current,1);
+ assert.equal(rules.advanceQuest(quest,false),0);assert.equal(rules.advanceQuest(quest,false),1);assert.equal(quest.failureCount,0);assert.equal(quest.current,2);
 });
 test('equipment respects capacity without limiting attribute totals',()=>{
  const c={attributes:{Força:99},receptacleCapacity:{chain:5,box:5},receptacles:[{equipped:true,effects:[{attribute:'Força',targetType:'attribute',bonus:25}]}]};assert.equal(rules.validateEquipment(c),'');

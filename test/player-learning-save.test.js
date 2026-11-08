@@ -42,6 +42,13 @@ test('jogador pode salvar a vida quando o nome do aprendizado ganha maiúscula',
  const after={profile:{healthCurrent:86,healthMax:100},learning:[{name:'Controle',current:1,goal:10}]};
  assert.equal(check(before,after),undefined);
 });
+test('jogador pede requisito de ideia aprovada e inicia desenvolvimento após a mestre preencher',()=>{
+ const approved={id:'idea',name:'A',status:'Aprovada'};
+ assert.equal(check({ideas:[approved]},{ideas:[{...approved,developmentRequested:true}]}),undefined);
+ assert.equal(check({ideas:[approved]},{ideas:[{...approved,status:'Em desenvolvimento'}]}),'o estado administrativo da ideia');
+ const ready={...approved,initialRequirement:25,developmentRequested:true};
+ assert.equal(check({ideas:[ready]},{ideas:[{...ready,status:'Em desenvolvimento',developmentRequested:false}]}),undefined);
+});
 
 test('editar habilidade não bloqueia quando bônus +7 já concluiu a quest 20',()=>{
  const before={quests:[{id:'q1',name:'Artes marciais',value:20,bonus:7,current:2,goal:10}],abilities:[{name:'Urutau',useCurrent:4}]};

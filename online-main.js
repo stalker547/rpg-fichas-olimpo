@@ -29,6 +29,15 @@ module.exports=function installOnline({ipcMain,net,dialog,shell,clipboard,native
   socket.onerror=reconnect;socket.onclose=()=>{if(s.socket===socket)s.socket=null;reconnect()};
  }
  async function load(s){const data=await s.client.load(),remote=s.client.user.appearance||{};s.appearance=withLocalPresets(s,Object.keys(remote).length?remote:s.appearance||{});data.sessionUser.appearance=s.appearance;s.snapshot=data;s.versions||=new Map();for(const c of data.characters)s.versions.set(`${c.id}:${c._remoteVersion}`,structuredClone(c));while(s.versions.size>100)s.versions.delete(s.versions.keys().next().value);return data}
+ async function importLocalSheetDefaults(s){
+  if(s.client.user.role!=='admin')return;
+  const file=path.join(__dirname,'assets','default-sheet-migration.json');
+  if(!fs.existsSync(file))return;
+  const defaults=require('./sheet-defaults-file').normalizeSheetDefaults(JSON.parse(fs.readFileSync(file,'utf8')));
+  const current=await s.client.load();
+  if(current.settings?.localSheetDefaultsImported20261108)return;
+  await s.client.settings({...current.settings,newSheetDefaults:{attributes:defaults.attributes,newSkills:defaults.newSkills},defaultGods:defaults.gods,localSheetDefaultsImported20261108:true});
+ }
  handle('auth:status',()=>({hasUsers:true,online:true}));
  handle('auth:setup',()=>{throw new Error('A instalação online já está configurada. Entre com sua conta da campanha.')});
  handle('auth:login',async(event,data)=>{
@@ -38,6 +47,7 @@ module.exports=function installOnline({ipcMain,net,dialog,shell,clipboard,native
   if(Object.keys(client.user.appearance||{}).length)appearance=client.user.appearance;const s={client,sender:event.sender,preferenceFile,presetsFile:path.join(DATA_ROOT,`appearance-presets-${client.user.id}.json`),appearance};sessions.set(event.sender.id,s);
   event.sender.once('destroyed',()=>{stop(s);sessions.delete(event.sender.id)});
   connect(s);
+  try{await importLocalSheetDefaults(s)}catch(error){console.error('Não foi possível importar a ficha padrão local para a VPS:',error.message)}
   s.timer=setInterval(async()=>{if(s.polling||s.closed)return;s.polling=true;try{const latest=await client.load();const signature=JSON.stringify([latest.characters,latest.settings,latest.users]);if(s.signature&&signature!==s.signature)notify(s);s.signature=signature}catch(error){if(!s.sender.isDestroyed())s.sender.send('online:status',{connected:false,message:error.message})}finally{s.polling=false}},5000);
   s.timer.unref();return load(s);
  });
@@ -57,6 +67,7 @@ module.exports=function installOnline({ipcMain,net,dialog,shell,clipboard,native
  handle('auth:remove-background',async event=>{const s=session(event),user=await s.client.removeBackground();return saveAppearance(s,user)});
  handle('db:load',event=>load(session(event)));
  handle('db:register-roll',async(event,characterId,roll)=>{const s=session(event),result=await s.client.registerRoll(characterId,roll);return {db:await load(s),advanced:result.advanced,failures:result.failures,duplicate:result.duplicate}});
+ handle('db:dismiss-point-grants',async(event,characterId,noticeIds)=>{const s=session(event);await s.client.request(`/characters/${encodeURIComponent(characterId)}/point-grant-notices`,'DELETE',{ids:noticeIds});return load(s)});
  handle('auth:create-user',async(event,data)=>{const s=session(event);await s.client.createUser(data);return load(s)});
  handle('auth:assign-character',async(event,id,owner)=>{const s=session(event);await s.client.assign(id,owner);return load(s)});
  handle('auth:delete-user',async(event,id)=>{const s=session(event);await s.client.request(`/users/${id}`,'DELETE');return load(s)});
@@ -97,6 +108,20 @@ module.exports=function installOnline({ipcMain,net,dialog,shell,clipboard,native
   const db=await load(s),previous=db.settings.attributeNames||[];
   for(const character of db.characters){const old=character.attributes||{};character.attributes=Object.fromEntries(next.map((name,index)=>[name,Number(old[previous[index]]??old[name])||1]));await s.client.save(character)}
   await s.client.settings({...db.settings,attributeNames:next});return load(s);
+ });
+ handle('db:update-default-gods',async(event,gods)=>{
+  const s=session(event);if(s.client.user.role!=='admin')throw new Error('Somente a mestre pode configurar as relações padrão.');
+  const entries=Object.entries(gods||{}).map(([name,value])=>[String(name).trim(),Number(value)]);
+  if(entries.length>100||entries.some(([name,value])=>!name||name.length>80||!Number.isFinite(value))||new Set(entries.map(([name])=>name.toLocaleLowerCase('pt-BR'))).size!==entries.length)throw new Error('Informe nomes de deuses únicos e afinidades numéricas.');
+  const db=await load(s);await s.client.settings({...db.settings,defaultGods:Object.fromEntries(entries)});return load(s);
+ });
+ handle('db:update-new-sheet-defaults',async(event,defaults)=>{
+  const s=session(event);if(s.client.user.role!=='admin')throw new Error('Somente a mestre pode configurar a ficha padrão.');
+  const attributes=Number(defaults?.attributes),newSkills=Number(defaults?.newSkills);
+  const entries=Object.entries(defaults?.gods||{}).map(([name,value])=>[String(name).trim(),Number(value)]);
+  if(!Number.isSafeInteger(attributes)||attributes<0||attributes>1000||!Number.isSafeInteger(newSkills)||newSkills<0||newSkills>1000)throw new Error('Informe pontos iniciais entre 0 e 1000.');
+  if(entries.length>100||entries.some(([name,value])=>!name||name.length>80||!Number.isFinite(value))||new Set(entries.map(([name])=>name.toLocaleLowerCase('pt-BR'))).size!==entries.length)throw new Error('Informe nomes de deuses únicos e afinidades numéricas.');
+  const db=await load(s);await s.client.settings({...db.settings,newSheetDefaults:{attributes,newSkills},defaultGods:Object.fromEntries(entries)});return load(s);
  });
  handle('db:update-skill-catalog',async(event,skills)=>{
   const s=session(event);if(s.client.user.role!=='admin')throw new Error('Somente a mestre pode cadastrar perícias.');

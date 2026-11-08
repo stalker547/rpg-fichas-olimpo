@@ -15,6 +15,13 @@ test('rolagem conclui quest 10 e preserva outras informações',async()=>{
  assert.equal(result.data.rollHistory.length,1);
  assert.equal(latest.quests[0].current,9);
 });
+test('rolagem conclui quest importada com valor zero no nível 10',async()=>{
+ const {applyRollProgress}=await load();
+ const latest={quests:[{id:'q1',name:'Percepção',value:0,current:8,goal:10}],skills:[],rollHistory:[]};
+ const result=applyRollProgress(latest,roll({items:[{name:'Percepção',kind:'quest'}]}));
+ assert.equal(result.data.quests.length,0);
+ assert.deepEqual([result.data.skills[0].value,result.data.skills[0].bonus],[10,3]);
+});
 test('quest 10 online soma dois no sucesso e um na falha',async()=>{
  const {applyRollProgress}=await load();
  const quest={id:'q10',name:'Armas a distância',value:10,current:8,goal:10};
@@ -24,6 +31,26 @@ test('quest 10 online soma dois no sucesso e um na falha',async()=>{
  assert.equal(success.data.skills[0].bonus,3);
  const failure=applyRollProgress({skills:[],quests:[quest],rollHistory:[]},roll({outcome:'failure',items:[{name:quest.name,kind:'quest'}]}));
  assert.equal(failure.data.quests[0].current,9);
+});
+test('falhas da quest 20 e 30 são registradas sem aumentar o progresso',async()=>{
+ const {applyRollProgress}=await load();
+ for(const [tier,required] of [[20,2],[30,3]]){
+  const name=`Quest ${tier}`;let data={skills:[],quests:[{id:`q${tier}`,name,value:tier,bonus:tier===20?3:7,current:4,goal:10}],rollHistory:[]};
+  for(let attempt=1;attempt<=required;attempt++){
+   const result=applyRollProgress(data,roll({id:`roll-${tier}-${attempt}`,outcome:'failure',items:[{name,kind:'quest'}]}));
+   data=result.data;
+   assert.equal(data.quests[0].current,4);
+   assert.equal(data.quests[0].failureCount,0);
+   assert.match(result.failures[0],/falha não aumenta esta quest/);
+   assert.match(result.data.rollHistory[0].progressNotes[0],/Falha não aumentou/);
+  }
+ }
+});
+test('histórico registra quando a rolagem eleva a perícia',async()=>{
+ const {applyRollProgress}=await load();
+ const result=applyRollProgress({skills:[{id:'s1',name:'Percepção',value:3}],quests:[],rollHistory:[]},roll({items:[{name:'Percepção',kind:'skill'}]}));
+ assert.equal(result.data.skills[0].value,5);
+ assert.deepEqual(result.data.rollHistory[0].progressNotes,['Percepção subiu para 5']);
 });
 test('rolagem finaliza quest antiga sem meta gravada',async()=>{
  const {applyRollProgress}=await load();
