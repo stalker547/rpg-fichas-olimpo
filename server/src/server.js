@@ -122,16 +122,6 @@ app.post('/campaigns/:id/characters',{preHandler:authenticate},async(request,rep
 app.post('/campaigns/:id/members',{preHandler:authenticate},async(request,reply)=>{const access=await campaignAccess(request.account,request.params.id);if(!access||request.account.role!=='primary_master'||access.owner_user_id!==request.account.id)return reply.code(403).send({error:'Somente a Mestre Principal da campanha pode adicionar jogadores.'});const user=(await pool.query('SELECT * FROM users WHERE id=$1 AND active=true',[request.body?.userId])).rows[0];if(!user||user.role!=='player')return reply.code(400).send({error:'Jogador inválido.'});await pool.query("INSERT INTO campaign_members(campaign_id,user_id,member_role) VALUES($1,$2,'player') ON CONFLICT(campaign_id,user_id) DO UPDATE SET member_role='player'",[access.id,user.id]);return {ok:true}});
 app.get('/characters/:id',{preHandler:authenticate},async(request,reply)=>{const character=await characterAccess(request.account,request.params.id);if(!character)return reply.code(403).send({error:'Sem acesso à ficha.'});return hidePlayerDrafts(character,request.account)});
 app.post('/characters/:id/personal-skills',{preHandler:authenticate},async(request,reply)=>{
-app.delete('/characters/:id/point-grant-notices',{preHandler:authenticate},async(request,reply)=>{
- const character=await characterAccess(request.account,request.params.id,true);
- if(!character)return reply.code(403).send({error:'Sem acesso à ficha.'});
- const ids=request.body?.ids;
- if(!Array.isArray(ids)||ids.length>100||ids.some(id=>typeof id!=='string'||id.length>100))return reply.code(400).send({error:'Avisos inválidos.'});
- if(!ids.length)return {ok:true};
- const updated=(await pool.query(`UPDATE characters SET data=jsonb_set(data,'{pointGrantNotices}',COALESCE((SELECT jsonb_agg(entries.notice) FROM jsonb_array_elements(CASE WHEN jsonb_typeof(data->'pointGrantNotices')='array' THEN data->'pointGrantNotices' ELSE '[]'::jsonb END) AS entries(notice) WHERE NOT (entries.notice->>'id'=ANY($2::text[]))),'[]'::jsonb),true),version=version+1,updated_at=now() WHERE id=$1 RETURNING version`,[character.id,ids])).rows[0];
- broadcast(character.campaign_id,{type:'character.updated',characterId:character.id,version:updated.version,by:request.account.name});
- return {ok:true};
-});
  const character=await characterAccess(request.account,request.params.id,true);
  if(!character)return reply.code(403).send({error:'Sem acesso à ficha.'});
  if(character.locked_by&&character.locked_by!==request.account.id&&new Date(character.lock_expires_at)>new Date())return reply.code(423).send({error:'Ficha sendo editada por outro usuário.'});
@@ -145,6 +135,16 @@ app.delete('/characters/:id/point-grant-notices',{preHandler:authenticate},async
  const updated=(await pool.query("UPDATE characters SET data=jsonb_set(data,'{personalSkillCatalog}',$2::jsonb,true),version=version+1,updated_at=now() WHERE id=$1 AND version=$3 RETURNING *",[character.id,JSON.stringify(catalog),character.version])).rows[0];
  if(!updated)return reply.code(409).send({error:'A ficha mudou. Tente cadastrar novamente.'});
  broadcast(character.campaign_id,{type:'character.updated',characterId:character.id,version:updated.version,by:request.account.name});return updated;
+});
+app.delete('/characters/:id/point-grant-notices',{preHandler:authenticate},async(request,reply)=>{
+ const character=await characterAccess(request.account,request.params.id,true);
+ if(!character)return reply.code(403).send({error:'Sem acesso à ficha.'});
+ const ids=request.body?.ids;
+ if(!Array.isArray(ids)||ids.length>100||ids.some(id=>typeof id!=='string'||id.length>100))return reply.code(400).send({error:'Avisos inválidos.'});
+ if(!ids.length)return {ok:true};
+ const updated=(await pool.query(`UPDATE characters SET data=jsonb_set(data,'{pointGrantNotices}',COALESCE((SELECT jsonb_agg(entries.notice) FROM jsonb_array_elements(CASE WHEN jsonb_typeof(data->'pointGrantNotices')='array' THEN data->'pointGrantNotices' ELSE '[]'::jsonb END) AS entries(notice) WHERE NOT (entries.notice->>'id'=ANY($2::text[]))),'[]'::jsonb),true),version=version+1,updated_at=now() WHERE id=$1 RETURNING version`,[character.id,ids])).rows[0];
+ broadcast(character.campaign_id,{type:'character.updated',characterId:character.id,version:updated.version,by:request.account.name});
+ return {ok:true};
 });
 app.patch('/characters/:id/owner',{preHandler:authenticate},async(request,reply)=>{
  const character=await characterAccess(request.account,request.params.id,true);
