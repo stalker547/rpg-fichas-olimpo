@@ -93,6 +93,8 @@
   load,
   updateAttributes:async names=>{const current=await load(),previous=current.settings.attributeNames||[];for(const character of current.characters){const old=character.attributes||{};character.attributes=Object.fromEntries(names.map((name,index)=>[name,Number(old[previous[index]]??old[name])||1]));await save(character)}await request(`/campaigns/${campaign.id}/settings`,'PUT',{...current.settings,attributeNames:names});return load()},
   updateSkillCatalog:async skills=>{const current=await load();await request(`/campaigns/${campaign.id}/settings`,'PUT',{...current.settings,customSkillCatalog:skills});return load()},
+  updateReceptacleCatalog:async folders=>{if(user.role!=='admin')throw new Error('Somente a mestre pode alterar o catálogo de receptáculos.');const current=await load();await request(`/campaigns/${campaign.id}/settings`,'PUT',{...current.settings,receptacleCatalog:folders});return load()},
+  updateNewSheetDefaults:async defaults=>{if(user.role!=='admin')throw new Error('Somente a mestre pode configurar a ficha padrão.');const current=await load();await request(`/campaigns/${campaign.id}/settings`,'PUT',{...current.settings,newSheetDefaults:{attributes:defaults.attributes,newSkills:defaults.newSkills},defaultGods:defaults.gods});return load()},
   saveCharacter:async(character,settings)=>{const row=await save(character);if(user.role==='admin'&&settings)await request(`/campaigns/${campaign.id}/settings`,'PUT',settings);if(user.role==='player'&&settings)await request(`/campaigns/${campaign.id}/solos`,'PATCH',{amount:Number(settings.solosByUser?.[user.id])||0});const db=await load();return {db,changes:[],characterId:row.id}},
   deleteCharacter:async id=>{await request(`/characters/${id}`,'DELETE');return load()},
   exportBackup:async()=>{const backup=await request(`/campaigns/${campaign.id}/backup`);return downloadFile(`Backup RPG Fichas ${new Date().toISOString().slice(0,10)}.rpgbackup`,JSON.stringify(backup),'application/json')},
@@ -104,6 +106,7 @@
   copyImage:async path=>{const blob=await downloadBlob(path);if(!navigator.clipboard?.write||!window.ClipboardItem)throw new Error('Seu Android não permite copiar imagens diretamente. Use compartilhar.');await navigator.clipboard.write([new ClipboardItem({[blob.type]:blob})]);return true},
   readAbilityImage:async()=>{throw new Error('O OCR será adicionado em uma próxima versão do APK.')},
   exportText:async(character,text,name)=>{const title=name||character.name||'Ficha RPG';if(plugins.Share?.share){await plugins.Share.share({title,text,dialogTitle:'Exportar ficha'});return true}return downloadFile(`${title}.txt`,text)},
+  exportReceptacleCatalog:async data=>{if(user.role!=='admin')throw new Error('Somente a mestre pode exportar o catálogo.');return downloadFile('receptaculos-rpg.json',JSON.stringify(data,null,2),'application/json')},
   openDataFolder:async()=>false,
   checkForUpdates:async()=>{const update=await findUpdate();if(!update)return {status:'current',message:'Você já está usando a versão mais recente.'};await openUpdate(update);return {status:'downloading',message:'Baixe o APK e confirme a instalação da atualização.'}},
   onUpdateStatus:callback=>{updateListeners.add(callback);return()=>updateListeners.delete(callback)}

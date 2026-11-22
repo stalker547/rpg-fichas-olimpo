@@ -18,6 +18,18 @@ vm.runInContext(promotion,sandbox);
 vm.runInContext(source,sandbox);
 const check=(before,after)=>sandbox.protectedPlayerChange({pointPools:{},skills:[],quests:[],gods:{},...before},{pointPools:{},skills:[],quests:[],gods:{},...after});
 
+test('jogador não pode renomear uma perícia existente',()=>{
+ const before={skills:[{id:'s1',name:'Caça',value:3}]};
+ const after={skills:[{id:'s1',name:'Outro nome',value:3}]};
+ assert.equal(check(before,after),'o nome de uma perícia existente');
+});
+
+test('jogador pode aumentar o valor sem alterar o nome da perícia',()=>{
+ const before={skills:[{id:'s1',name:'Caça',value:3}]};
+ const after={skills:[{id:'s1',name:'Caça',value:4}]};
+ assert.equal(check(before,after),undefined);
+});
+
 test('jogador pode concluir um aprendizado e manter outro sem alterar a configuração',()=>{
  const before={learning:[{id:'a',name:'Controle',current:9,goal:10},{id:'b',name:'Audição',current:3,goal:10}]};
  const after={learning:[{id:'b',name:'Audição',current:3,goal:10}],skills:[{id:'new',name:'Controle',value:1}]};

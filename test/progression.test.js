@@ -22,6 +22,13 @@ test('passives stop at level 5 and active abilities stop at level 10',()=>{
  const c={abilities:[{type:'passive',level:4,useCurrent:45,useGoal:40},{type:'active',level:9,useCurrent:70,useGoal:65}]};
  applyProgression(c);assert.deepEqual(c.abilities.map(a=>[a.level,a.useCurrent,a.useGoal]),[[5,0,45],[10,0,70]]);assert.equal(applyProgression(c),false);
 });
+test('ultimate rises by five uses per level and stops at level 15',()=>{
+ const c={abilities:[{type:'ultimate',level:1,useCurrent:25,useGoal:25}]};
+ applyProgression(c);assert.deepEqual([c.abilities[0].level,c.abilities[0].useCurrent,c.abilities[0].useGoal],[2,0,30]);
+ c.abilities[0]={type:'ultimate',level:14,useCurrent:95,useGoal:90};
+ applyProgression(c);assert.deepEqual([c.abilities[0].level,c.abilities[0].useCurrent,c.abilities[0].useGoal],[15,0,95]);
+ c.abilities[0].useCurrent=100;applyProgression(c);assert.equal(c.abilities[0].level,15);assert.equal(c.abilities[0].useCurrent,0);
+});
 test('incomplete and uninitialized progress remains unchanged',()=>{
  const c={creations:[{current:0,requirement:0},{current:1,requirement:40}],abilities:[{level:1,useCurrent:24,useGoal:25}]};
  assert.equal(applyProgression(c),false);assert.equal(c.creations.length,2);assert.equal(c.abilities[0].level,1);

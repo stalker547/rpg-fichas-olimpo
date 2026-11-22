@@ -23,9 +23,18 @@ test('renomear não substitui outra divindade existente',()=>{
 });
 
 test('remover divindade não apaga um efeito vinculado por acidente',()=>{
- const character={gods:{Ares:40},receptacles:[{effects:[{attribute:'Ares',targetType:'god',bonus:5}]}]};
+ const character={gods:{Ares:40},receptacles:[{equipped:true,effects:[{attribute:'Ares',targetType:'god',bonus:5}]}]};
  assert.throws(()=>sandbox.removeGodRelation(character,'Ares'),/receptáculo/);
  assert.equal(character.gods.Ares,40);
+});
+
+test('remover divindade com receptáculo guardado preserva o item inativo',()=>{
+ const item={equipped:false,effects:[{attribute:'Dionísio',targetType:'god',bonus:10}]};
+ const character={gods:{'Dionísio':0},receptacles:[item]};
+ assert.equal(sandbox.removeGodRelation(character,'Dionísio'),true);
+ assert.equal(Object.hasOwn(character.gods,'Dionísio'),false);
+ assert.equal(character.receptacles[0],item);
+ assert.equal(item.effects[0].attribute,'Dionísio');
 });
 
 test('remover divindade sem vínculos exclui apenas a relação',()=>{

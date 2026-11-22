@@ -138,7 +138,7 @@ function readDb() {
     if (!Number.isFinite(Number(character.profile.healthCurrent))) { character.profile.healthCurrent=character.profile.healthMax; cleaned=true; }
     if (Number(character.profile.healthCurrent)<0 || Number(character.profile.healthCurrent)>Number(character.profile.healthMax)) { character.profile.healthCurrent=Math.max(0,Math.min(Number(character.profile.healthMax),Number(character.profile.healthCurrent))); cleaned=true; }
     character.attributes ||= {};
-    if(Object.prototype.hasOwnProperty.call(character.attributes,'Velocidade')&&!Object.prototype.hasOwnProperty.call(character.attributes,'Carisma')){character.attributes.Carisma=character.attributes.Velocidade;delete character.attributes.Velocidade;cleaned=true;}
+    if(db.settings.attributeNames.includes('Carisma')&&Object.prototype.hasOwnProperty.call(character.attributes,'Velocidade')&&!Object.prototype.hasOwnProperty.call(character.attributes,'Carisma')){character.attributes.Carisma=character.attributes.Velocidade;delete character.attributes.Velocidade;cleaned=true;}
     for(const attribute of db.settings.attributeNames)if(!Object.prototype.hasOwnProperty.call(character.attributes,attribute)){character.attributes[attribute]=1;cleaned=true;}
     if (!character.pointPools) { character.pointPools = { attributes:0, skills:0, newSkills:0 }; cleaned = true; }
     if (!Number.isFinite(Number(character.pointPools.attributes))) { character.pointPools.attributes = 0; cleaned = true; }
@@ -188,7 +188,7 @@ function readDb() {
       if(god&&item.attribute!==god){item.attribute=god;cleaned=true;}
       if(god&&/^Receptáculo \d+$/i.test(item.name||'')){item.name=`Receptáculo de ${god}`;cleaned=true;}
       if(!Array.isArray(item.effects)||!item.effects.length){item.effects=[{attribute:item.attribute||db.settings.attributeNames[0],targetType:item.targetType||'attribute',bonus:Number(item.bonus)||0}];cleaned=true;}
-      for(const effect of item.effects){if(effect.attribute==='Velocidade'){effect.attribute='Carisma';cleaned=true;}}
+      for(const effect of item.effects){if(effect.attribute==='Velocidade'&&db.settings.attributeNames.includes('Carisma')&&!db.settings.attributeNames.includes('Velocidade')){effect.attribute='Carisma';cleaned=true;}}
     }
     if (!Array.isArray(character.milestones)) { character.milestones = []; cleaned = true; }
     if (!Array.isArray(character.companions)) { character.companions = []; cleaned = true; }
@@ -242,6 +242,20 @@ function readDb() {
       }
       if (normalized === 'moedas') { delete character.attributes[key]; cleaned = true; }
     }
+  }
+  // Repair saves made while the old migration still forced Velocidade back to Carisma.
+  if(db.settings.attributeNames.includes('Velocidade')&&!db.settings.attributeNames.includes('Carisma')){
+    const repair=item=>{
+      if(!item||typeof item!=='object')return;
+      if(item.attribute==='Carisma'&&(!item.targetType||item.targetType==='attribute')){item.attribute='Velocidade';cleaned=true;}
+      for(const effect of item.effects||[])if(effect.attribute==='Carisma'&&(!effect.targetType||effect.targetType==='attribute')){effect.attribute='Velocidade';cleaned=true;}
+      if(item.name==='Carisma'||item.name==='Receptáculo de Carisma'){item.name=item.name.replace('Carisma','Velocidade');cleaned=true;}
+      if(typeof item.detail==='string'&&item.detail.includes('Carisma')){item.detail=item.detail.replaceAll('Carisma','Velocidade');cleaned=true;}
+    };
+    for(const character of db.characters||[])for(const item of character.receptacles||[])repair(item);
+    const catalog=db.settings.receptacleCatalog;
+    for(const group of catalog?.builtinGroups||[])for(const item of group.items||[])repair(item);
+    for(const item of catalog?.items||[])repair(item);
   }
   const users=db.settings.authUsers||[],admin=users.find(user=>user.role==='admin');
   if(admin) for(const character of db.characters||[]) if(!character.ownerUserId){character.ownerUserId=admin.id;cleaned=true;}
@@ -473,6 +487,7 @@ ipcMain.handle('auth:login', (event, data) => {
   }
 });
 ipcMain.handle('auth:logout', event => { sessions.delete(event.sender.id);return true; });
+ipcMain.handle('app:reload-view', event => {const sender=event.sender;setImmediate(()=>{if(!sender.isDestroyed())sender.reload()});return true});
 ipcMain.handle('auth:change-password', (event, data) => {const db=readDb(),user=sessionUser(event,db),current=String(data?.currentPassword||''),next=String(data?.newPassword||'');if(!passwordMatches(current,user))throw new Error('A senha atual está incorreta.');if(next.length<4)throw new Error('A nova senha precisa ter pelo menos 4 caracteres.');const record=passwordRecord(next);user.passwordSalt=record.salt;user.passwordHash=record.hash;writeDb(db);return true;});
 ipcMain.handle('auth:update-appearance', (event, appearance) => {
   const db=readDb(),user=sessionUser(event,db),colors=['bg','bg2','panel','panel2','sidebar','input','line','accent','accent2','text','muted','gold','danger','toast','toastError','dirtyBar','notification'],next={...(user.appearance||{})};
@@ -544,14 +559,38 @@ ipcMain.handle('db:update-attributes', (event, names) => {
   const next=(Array.isArray(names)?names:[]).map(value=>String(value||'').trim()).filter(Boolean);
   if(!next.length)throw new Error('Cadastre pelo menos um atributo.');
   if(new Set(next.map(normalizeUsername)).size!==next.length)throw new Error('Não pode haver atributos com o mesmo nome.');
+  const renamed=new Map(before.map((name,index)=>[normalizeUsername(name),next[index]]).filter(([key,name])=>key&&name));
+  const renameEffect=effect=>{if(effect&&(!effect.targetType||effect.targetType==='attribute'))effect.attribute=renamed.get(normalizeUsername(effect.attribute))||effect.attribute;};
+  const renameModel=item=>{
+    if(!item||typeof item!=='object')return;
+    const oldAttribute=item.attribute;
+    if(!item.targetType||item.targetType==='attribute')item.attribute=renamed.get(normalizeUsername(oldAttribute))||oldAttribute;
+    const previousEffects=(item.effects||[]).map(effect=>effect.attribute);
+    for(const effect of item.effects||[])renameEffect(effect);
+    const replacement=renamed.get(normalizeUsername(item.name));
+    if(replacement)item.name=replacement;
+    else for(const oldName of before){const oldLabel=`Receptáculo de ${oldName}`;if(normalizeUsername(item.name)===normalizeUsername(oldLabel)&&renamed.get(normalizeUsername(oldName)))item.name=`Receptáculo de ${renamed.get(normalizeUsername(oldName))}`;}
+    if(previousEffects.some((attribute,index)=>attribute!==item.effects[index].attribute)&&typeof item.detail==='string')item.detail=item.effects.map(effect=>`${effect.targetType==='god'?'Afinidade com ':''}${effect.attribute} +${Number(effect.bonus)||0}`).join(' · ');
+  };
   for(const character of db.characters||[]){
     const old=character.attributes||{},updated={};
     next.forEach((name,index)=>{const oldName=before[index];updated[name]=Object.prototype.hasOwnProperty.call(old,oldName)?Number(old[oldName])||1:Object.prototype.hasOwnProperty.call(old,name)?Number(old[name])||1:1});
     character.attributes=updated;
-    for(const item of character.receptacles||[])for(const effect of item.effects||[])if(effect.targetType!=='god'){const effectIndex=before.findIndex(name=>normalizeUsername(name)===normalizeUsername(effect.attribute));if(effectIndex>=0&&next[effectIndex])effect.attribute=next[effectIndex];}
+    for(const item of character.receptacles||[])renameModel(item);
     character.updatedAt=new Date().toISOString();
   }
+  const catalog=db.settings.receptacleCatalog;
+  if(catalog){for(const group of catalog.builtinGroups||[])for(const item of group.items||[])renameModel(item);for(const item of catalog.items||[])renameModel(item);}
+  const help=db.settings.attributeHelp||{};
+  db.settings.attributeHelp=Object.fromEntries(next.map((name,index)=>[name,help[before[index]]||help[name]||'']).filter(([,value])=>value));
   db.settings.attributeNames=next;writeDb(db);return visibleDb(db,admin);
+});
+ipcMain.handle('db:update-attribute-help', (event, help) => {
+  const db=readDb(),admin=sessionUser(event,db,true),names=db.settings.attributeNames||[];
+  if(!help||typeof help!=='object'||Array.isArray(help))throw new Error('Informações de atributos inválidas.');
+  db.settings.attributeHelp=Object.fromEntries(names.map(name=>[name,String(help[name]||'').trim()]));
+  if(Object.values(db.settings.attributeHelp).some(value=>value.length>20000))throw new Error('Texto de atributo muito longo.');
+  writeDb(db);return visibleDb(db,admin);
 });
 ipcMain.handle('db:update-default-gods', (event, gods) => {
   const db=readDb(),admin=sessionUser(event,db,true);
@@ -575,6 +614,11 @@ ipcMain.handle('db:update-skill-catalog', (event, skills) => {
   const next=(Array.isArray(skills)?skills:[]).map(skill=>({name:String(skill.name||'').trim(),category:String(skill.category||'Outras').trim()||'Outras',description:String(skill.description||'').trim()})).filter(skill=>skill.name);
   if(new Set(next.map(skill=>normalizeUsername(skill.name))).size!==next.length)throw new Error('Não pode haver perícias repetidas.');
   db.settings.customSkillCatalog=next;writeDb(db);return visibleDb(db,sessionUser(event,db,true));
+});
+ipcMain.handle('db:update-receptacle-catalog', (event, folders) => {
+  const db=readDb(),user=sessionUser(event,db,true);
+  db.settings.receptacleCatalog=folders;
+  writeDb(db);return visibleDb(db,user);
 });
 ipcMain.handle('db:add-character-skill', (event, characterId, skill) => {
   const db=readDb(),user=sessionUser(event,db),character=db.characters.find(item=>item.id===characterId);
@@ -602,6 +646,7 @@ ipcMain.handle('db:save-character', (event, character, settings) => {
   if(user.role!=='admin'&&before&&String(character.tableId||'')!==String(before.tableId||''))throw new Error('Somente a mestre pode alterar a mesa do personagem.');
   if(user.role!=='admin'&&Boolean(character.archived)!==Boolean(before?.archived))throw new Error('Apenas a mestre pode engavetar ou restaurar fichas.');
   if(user.role!=='admin'&&before&&Boolean(character.txtPasteBlocked)!==Boolean(before.txtPasteBlocked))throw new Error('Somente a mestre pode bloquear ou liberar Colar TXT.');
+  if(user.role!=='admin'&&before&&!require('./server/src/receptacle-access.cjs').playerMaySaveReceptacles(before.receptacles,character.receptacles,db.settings.receptacleCatalog,{consume:character.changeSource==='receptacle-consume'}))throw new Error('Somente a mestre pode editar receptáculos; jogadores podem adicionar modelos do catálogo ou consumir um receptáculo equipado.');
   character.ownerUserId=user.role==='admin'?(character.ownerUserId||user.id):user.id;
   const solosOwnerId=character.ownerUserId||user.id;
   db.settings.solosByUser||={};
@@ -612,6 +657,8 @@ ipcMain.handle('db:save-character', (event, character, settings) => {
   delete character.changeNote;
   delete character.changeSource;
   if(user.role!=='admin'&&before){
+    const skillKey=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').replace(/[^a-z0-9]/g,'');
+    for(const old of before.skills||[]){const match=(character.skills||[]).find(skill=>old.id&&skill.id===old.id||!old.id&&skillKey(skill.name)===skillKey(old.name));if(match&&skillKey(match.name)!==skillKey(old.name)||!old.id&&!match&&(character.skills||[]).length>=(before.skills||[]).length&&!(character.quests||[]).some(quest=>skillKey(quest.name)===skillKey(old.name)))throw new Error('Somente a mestre pode renomear uma perícia existente.');}
     const oldUnlocks=Number(before.pointPools?.newSkills)||0,newUnlocks=Number(character.pointPools?.newSkills)||0;
     const oldSkillIds=new Set((before.skills||[]).map(skill=>skill.id).filter(Boolean));
     const addedSkills=(character.skills||[]).filter(skill=>skill.id&&!oldSkillIds.has(skill.id)).length;
@@ -718,6 +765,26 @@ ipcMain.handle('file:export-text', async (event, character, text, fileName) => {
   if (result.canceled) return false;
   fs.writeFileSync(result.filePath, text, 'utf8');
   return true;
+});
+ipcMain.handle('file:export-receptacle-catalog', async (event, data) => {
+  const db=readDb();sessionUser(event,db,true);
+  if(data?.format!=='rpg-receptaculos'||data?.version!==1||!Array.isArray(data.folders))throw new Error('Catálogo inválido.');
+  const result=await dialog.showSaveDialog({defaultPath:'receptaculos-rpg.json',filters:[{name:'Receptáculos JSON',extensions:['json']}]});
+  if(result.canceled)return false;fs.writeFileSync(result.filePath,JSON.stringify(data,null,2),'utf8');return true;
+});
+ipcMain.handle('file:export-sheet-defaults',async(event,defaults)=>{
+ const db=readDb();sessionUser(event,db,true);
+ const data=require('./sheet-defaults-file').makeSheetDefaultsFile(defaults);
+ const result=await dialog.showSaveDialog({defaultPath:'ficha-padrao-rpg.json',filters:[{name:'Ficha padrão RPG',extensions:['json']}]});
+ if(result.canceled||!result.filePath)return false;
+ fs.writeFileSync(result.filePath,JSON.stringify(data,null,2),'utf8');return true;
+});
+ipcMain.handle('file:import-sheet-defaults',async event=>{
+ const db=readDb();sessionUser(event,db,true);
+ const result=await dialog.showOpenDialog({properties:['openFile'],filters:[{name:'Ficha padrão RPG',extensions:['json']}]});
+ if(result.canceled||!result.filePaths[0])return null;
+ const file=result.filePaths[0];if(fs.statSync(file).size>32768)throw new Error('Arquivo grande demais.');
+ return require('./sheet-defaults-file').normalizeSheetDefaults(JSON.parse(fs.readFileSync(file,'utf8')));
 });
 ipcMain.handle('data:open-folder', event => {const db=readDb();sessionUser(event,db,true);return shell.openPath(DATA_ROOT)});
 if(!LOCAL_MODE)require('./online-main')({ipcMain,net:require('electron').net,dialog,shell,clipboard,nativeImage,DATA_ROOT,MEDIA_ROOT,changesBetween,readAbilityTable,unpackedPath});

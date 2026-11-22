@@ -12,6 +12,7 @@ import crypto from 'node:crypto';
 import {applyRollProgress} from './roll-progress.js';
 import {hidePlayerDrafts,preservePlayerDrafts} from './idea-visibility.js';
 import {isAuthorizedPromotion} from './quest-promotion.js';
+import receptacleAccess from './receptacle-access.cjs';
 import { fileURLToPath } from 'node:url';
 
 const {Pool}=pg;
@@ -65,6 +66,7 @@ function protectedPlayerChange(before,after,{txtImport=false,source='manual'}={}
  const paths=['profile.recognized','profile.divineBonus','name','tableId','txtPasteBlocked',...(!txtImport?['profile.parent','profile.level','profile.xp']:[]),...(!txtImport&&source!=='receptacle-consume'?['gods']:[])];
  const field=paths.find(key=>!same(get(before,key),get(after,key)));if(field)return field;
  const skillName=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,''),oldSkills=before.skills||[],oldSkillIds=new Set(oldSkills.map(s=>s.id).filter(Boolean)),oldSkillNames=new Set(oldSkills.map(s=>skillName(s.name))),newSkills=(after.skills||[]).filter(s=>(s.id&&!oldSkillIds.has(s.id))||(!s.id&&!oldSkillNames.has(skillName(s.name))));
+ for(const old of oldSkills){const match=(after.skills||[]).find(skill=>old.id&&skill.id===old.id||!old.id&&skillName(skill.name)===skillName(old.name));if(match&&skillName(match.name)!==skillName(old.name))return 'o nome de uma perícia existente';if(!old.id&&!match&&(after.skills||[]).length>=oldSkills.length&&!(after.quests||[]).some(quest=>skillName(quest.name)===skillName(old.name)))return 'o nome de uma perícia existente';}
  const addedSkills=newSkills.filter(skill=>!isAuthorizedPromotion(before,after,skill)).length;
  const spentNewSkills=(Number(before.pointPools?.newSkills)||0)-(Number(after.pointPools?.newSkills)||0),spentSkills=(Number(before.pointPools?.skills)||0)-(Number(after.pointPools?.skills)||0);
  if(spentNewSkills>addedSkills||(!txtImport&&addedSkills>spentNewSkills+Math.floor(Math.max(0,spentSkills)/3)))return 'a criação de perícias sem gastar 1 ponto de nova perícia ou 3 pontos normais por perícia';
@@ -121,6 +123,16 @@ app.get('/campaigns/:id/characters',{preHandler:authenticate},async(request,repl
 app.post('/campaigns/:id/characters',{preHandler:authenticate},async(request,reply)=>{const access=await campaignAccess(request.account,request.params.id);if(!access||request.account.role==='player')return reply.code(403).send({error:'Sem permissão para criar fichas.'});const data=request.body?.data||{},name=String(data.name||request.body?.name||'Novo personagem');const character=(await pool.query('INSERT INTO characters(campaign_id,owner_user_id,name,data) VALUES($1,$2,$3,$4) RETURNING *',[request.params.id,request.body?.ownerUserId||request.account.id,name,data])).rows[0];broadcast(request.params.id,{type:'character.created',characterId:character.id});return character});
 app.post('/campaigns/:id/members',{preHandler:authenticate},async(request,reply)=>{const access=await campaignAccess(request.account,request.params.id);if(!access||request.account.role!=='primary_master'||access.owner_user_id!==request.account.id)return reply.code(403).send({error:'Somente a Mestre Principal da campanha pode adicionar jogadores.'});const user=(await pool.query('SELECT * FROM users WHERE id=$1 AND active=true',[request.body?.userId])).rows[0];if(!user||user.role!=='player')return reply.code(400).send({error:'Jogador inválido.'});await pool.query("INSERT INTO campaign_members(campaign_id,user_id,member_role) VALUES($1,$2,'player') ON CONFLICT(campaign_id,user_id) DO UPDATE SET member_role='player'",[access.id,user.id]);return {ok:true}});
 app.get('/characters/:id',{preHandler:authenticate},async(request,reply)=>{const character=await characterAccess(request.account,request.params.id);if(!character)return reply.code(403).send({error:'Sem acesso à ficha.'});return hidePlayerDrafts(character,request.account)});
+app.delete('/characters/:id/point-grant-notices',{preHandler:authenticate},async(request,reply)=>{
+ const character=await characterAccess(request.account,request.params.id,true);
+ if(!character)return reply.code(403).send({error:'Sem acesso à ficha.'});
+ const ids=request.body?.ids;
+ if(!Array.isArray(ids)||ids.length>100||ids.some(id=>typeof id!=='string'||id.length>100))return reply.code(400).send({error:'Avisos inválidos.'});
+ if(!ids.length)return {ok:true};
+ const updated=(await pool.query(`UPDATE characters SET data=jsonb_set(data,'{pointGrantNotices}',COALESCE((SELECT jsonb_agg(entries.notice) FROM jsonb_array_elements(CASE WHEN jsonb_typeof(data->'pointGrantNotices')='array' THEN data->'pointGrantNotices' ELSE '[]'::jsonb END) AS entries(notice) WHERE NOT (entries.notice->>'id'=ANY($2::text[]))),'[]'::jsonb),true),version=version+1,updated_at=now() WHERE id=$1 RETURNING version`,[character.id,ids])).rows[0];
+ broadcast(character.campaign_id,{type:'character.updated',characterId:character.id,version:updated.version,by:request.account.name});
+ return {ok:true};
+});
 app.post('/characters/:id/personal-skills',{preHandler:authenticate},async(request,reply)=>{
  const character=await characterAccess(request.account,request.params.id,true);
  if(!character)return reply.code(403).send({error:'Sem acesso à ficha.'});
@@ -188,6 +200,10 @@ app.put('/characters/:id',{preHandler:authenticate},async(request,reply)=>{
  if(user.role==='player'&&txtImport&&character.data.txtPasteBlocked)return reply.code(403).send({error:'A mestre bloqueou Colar TXT para esta ficha.'});
  if(!same(character.data.profile?.recognized,data.profile?.recognized)&&!['Sim','Não'].includes(data.profile?.recognized))return reply.code(400).send({error:'Reconhecido deve ser Sim ou Não.'});
  if(!same(character.data.attributes,data.attributes)||!same(character.data.receptacles,data.receptacles)||!same(character.data.receptacleCapacity,data.receptacleCapacity)){const error=globalThis.RpgRules.validateEquipment(data);if(error)return reply.code(400).send({error})}
+ if(user.role==='player'&&!same(character.data.receptacles,data.receptacles)){
+  const settings=(await pool.query('SELECT data FROM campaign_settings WHERE campaign_id=$1',[character.campaign_id])).rows[0]?.data||{};
+  if(!receptacleAccess.playerMaySaveReceptacles(character.data.receptacles,data.receptacles,settings.receptacleCatalog,{consume:source==='receptacle-consume'}))return reply.code(403).send({error:'Somente a mestre pode editar receptáculos; jogadores podem adicionar modelos do catálogo ou consumir um receptáculo equipado.'});
+ }
  if(user.role==='player'){const field=protectedPlayerChange(character.data,data,{txtImport,source});if(field)return reply.code(403).send({error:`Somente a mestre pode alterar ${field}.`})}
  const changes=scoreChanges(character.data,data),summary=pointSummary(user,character,changes,source);
  const notices=Array.isArray(character.data.pointGrantNotices)?character.data.pointGrantNotices:[];

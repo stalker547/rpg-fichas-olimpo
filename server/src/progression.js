@@ -1,6 +1,6 @@
 // Shared rules: used by the renderer and copied to the API on deployment.
 (function(root){
- function abilityMaxLevel(type){return type==='passive'?5:type==='active'||!type?10:null}
+ function abilityMaxLevel(type){return type==='passive'?5:type==='active'||!type?10:type==='ultimate'?15:null}
  function abilityUseGoal(level){return 20+Math.max(1,Number(level)||1)*5}
  function abilityAtMax(ability){const maximum=abilityMaxLevel(ability?.type);return maximum!==null&&Math.max(1,Number(ability?.level)||1)>=maximum}
  function skillKey(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'')}

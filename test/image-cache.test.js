@@ -1,0 +1,30 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const vm=require('node:vm');
+
+test('image cache has a size limit and drops pending images when accounts change',async()=>{
+ const source=fs.readFileSync(path.join(__dirname,'..','src','app.js'),'utf8');
+ const start=source.indexOf('const imageDataCache=new Map()');
+ const end=source.indexOf('function paintImages(',start);
+ assert.ok(start>=0&&end>start);
+ const code=source.slice(start,end).replace('32*1024*1024','32');
+ const requests=[];
+ const context={window:{rpg:{imageDataUrl:()=>new Promise(resolve=>requests.push(resolve))}},Promise,Map};
+ vm.runInNewContext(`${code}\nglobalThis.cache={imageData,imageDataCache,clearImageDataCache};`,context);
+ const {imageData,imageDataCache,clearImageDataCache}=context.cache;
+ const first=imageData('/me/background');
+ clearImageDataCache();
+ requests[0]('old-account-image');
+ assert.equal(await first,'');
+ assert.equal(imageDataCache.size,0);
+ const second=imageData('/me/background');
+ requests[1]('new-account-image');
+ assert.equal(await second,'new-account-image');
+ assert.equal(imageDataCache.get('/me/background'),'new-account-image');
+ const large=imageData('/media/large');
+ requests[2]('x'.repeat(33));
+ assert.equal((await large).length,33);
+ assert.equal(imageDataCache.has('/media/large'),false);
+});

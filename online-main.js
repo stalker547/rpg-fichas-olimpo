@@ -49,6 +49,7 @@ module.exports=function installOnline({ipcMain,net,dialog,shell,clipboard,native
   connect(s);
   try{await importLocalSheetDefaults(s)}catch(error){console.error('Não foi possível importar a ficha padrão local para a VPS:',error.message)}
   s.timer=setInterval(async()=>{if(s.polling||s.closed)return;s.polling=true;try{const latest=await client.load();const signature=JSON.stringify([latest.characters,latest.settings,latest.users]);if(s.signature&&signature!==s.signature)notify(s);s.signature=signature}catch(error){if(!s.sender.isDestroyed())s.sender.send('online:status',{connected:false,message:error.message})}finally{s.polling=false}},5000);
+  s.timer=setInterval(async()=>{if(s.polling||s.closed)return;s.polling=true;try{const latest=await client.load();const signature=JSON.stringify([latest.characters,latest.settings,latest.users]);if(s.signature&&signature!==s.signature)notify(s);s.signature=signature}catch(error){if(!s.sender.isDestroyed())s.sender.send('online:status',{connected:false,message:error.message})}finally{s.polling=false}},30000);
   s.timer.unref();return load(s);
  });
  handle('auth:logout',event=>{stop(sessions.get(event.sender.id));sessions.delete(event.sender.id);return true});
@@ -107,7 +108,31 @@ module.exports=function installOnline({ipcMain,net,dialog,shell,clipboard,native
   const next=names.map(v=>String(v).trim()).filter(Boolean);if(!next.length||new Set(next.map(v=>v.toLowerCase())).size!==next.length)throw new Error('Informe atributos sem nomes repetidos.');
   const db=await load(s),previous=db.settings.attributeNames||[];
   for(const character of db.characters){const old=character.attributes||{};character.attributes=Object.fromEntries(next.map((name,index)=>[name,Number(old[previous[index]]??old[name])||1]));await s.client.save(character)}
-  await s.client.settings({...db.settings,attributeNames:next});return load(s);
+  const savedHelp=db.settings.attributeHelp||{};
+  const attributeHelp=Object.fromEntries(next.map((name,index)=>[name,savedHelp[previous[index]]??savedHelp[name]??'']));
+  await s.client.settings({...db.settings,attributeNames:next,attributeHelp});return load(s);
+ });
+ handle('db:update-attribute-help',async(event,help)=>{
+  const s=session(event);if(s.client.user.role!=='admin')throw new Error('Somente a mestre pode alterar as informações dos atributos.');
+  const db=await load(s),names=db.settings.attributeNames||[];
+  if(!help||typeof help!=='object'||Array.isArray(help))throw new Error('Informações de atributos inválidas.');
+  const attributeHelp=Object.fromEntries(names.map(name=>[name,String(help[name]||'').trim()]));
+  if(Object.values(attributeHelp).some(value=>value.length>20000))throw new Error('Texto de atributo muito longo.');
+  await s.client.settings({...db.settings,attributeHelp});return load(s);
+ });
+ handle('db:update-default-gods',async(event,gods)=>{
+  const s=session(event);if(s.client.user.role!=='admin')throw new Error('Somente a mestre pode configurar as relações padrão.');
+  const entries=Object.entries(gods||{}).map(([name,value])=>[String(name).trim(),Number(value)]);
+  if(entries.length>100||entries.some(([name,value])=>!name||name.length>80||!Number.isFinite(value))||new Set(entries.map(([name])=>name.toLocaleLowerCase('pt-BR'))).size!==entries.length)throw new Error('Informe nomes de deuses únicos e afinidades numéricas.');
+  const db=await load(s);await s.client.settings({...db.settings,defaultGods:Object.fromEntries(entries)});return load(s);
+ });
+ handle('db:update-new-sheet-defaults',async(event,defaults)=>{
+  const s=session(event);if(s.client.user.role!=='admin')throw new Error('Somente a mestre pode configurar a ficha padrão.');
+  const attributes=Number(defaults?.attributes),newSkills=Number(defaults?.newSkills);
+  const entries=Object.entries(defaults?.gods||{}).map(([name,value])=>[String(name).trim(),Number(value)]);
+  if(!Number.isSafeInteger(attributes)||attributes<0||attributes>1000||!Number.isSafeInteger(newSkills)||newSkills<0||newSkills>1000)throw new Error('Informe pontos iniciais entre 0 e 1000.');
+  if(entries.length>100||entries.some(([name,value])=>!name||name.length>80||!Number.isFinite(value))||new Set(entries.map(([name])=>name.toLocaleLowerCase('pt-BR'))).size!==entries.length)throw new Error('Informe nomes de deuses únicos e afinidades numéricas.');
+  const db=await load(s);await s.client.settings({...db.settings,newSheetDefaults:{attributes,newSkills},defaultGods:Object.fromEntries(entries)});return load(s);
  });
  handle('db:update-default-gods',async(event,gods)=>{
   const s=session(event);if(s.client.user.role!=='admin')throw new Error('Somente a mestre pode configurar as relações padrão.');
@@ -129,6 +154,10 @@ module.exports=function installOnline({ipcMain,net,dialog,shell,clipboard,native
   const db=await load(s),baseNames=new Set((db.settings.customSkillCatalog||[]).map(skill=>String(skill.name||'').toLowerCase()));if(new Set(next.map(skill=>skill.name.toLowerCase())).size!==next.length)throw new Error('Não pode haver perícias repetidas.');
   await s.client.settings({...db.settings,customSkillCatalog:next});return load(s);
  });
+ handle('db:update-receptacle-catalog',async(event,folders)=>{
+  const s=session(event);if(s.client.user.role!=='admin')throw new Error('Somente a mestre pode alterar o catálogo de receptáculos.');
+  const db=await load(s);await s.client.settings({...db.settings,receptacleCatalog:folders});return load(s);
+ });
  handle('db:add-character-skill',async(event,characterId,skill)=>{
   const s=session(event);await s.client.addPersonalSkill(characterId,skill);return load(s);
  });
@@ -144,5 +173,8 @@ module.exports=function installOnline({ipcMain,net,dialog,shell,clipboard,native
  handle('media:copy-image',async(event,file)=>{const s=session(event);let buffer;if(/^\/media\/[a-f0-9-]+$/i.test(file)){const response=await net.fetch(s.client.baseUrl+file,{headers:{Authorization:`Bearer ${s.client.token}`}});if(!response.ok)throw new Error('Não foi possível baixar esta imagem.');buffer=Buffer.from(await response.arrayBuffer())}else{const resolved=path.resolve(file);if(!resolved.startsWith(path.resolve(MEDIA_ROOT)+path.sep))throw new Error('Esta imagem não pertence ao aplicativo.');buffer=fs.readFileSync(resolved)}const image=nativeImage.createFromBuffer(buffer);if(image.isEmpty())throw new Error('Não foi possível ler esta imagem.');clipboard.writeImage(image);return true});
  handle('ocr:abilities',async(event,id)=>{const s=session(event);if(!s.snapshot.characters.some(c=>c.id===id))throw new Error('Ficha indisponível.');const chosen=await dialog.showOpenDialog({properties:['openFile'],filters:[{name:'Tabela',extensions:['png','jpg','jpeg','webp','bmp']}]});if(chosen.canceled)return {canceled:true,abilities:[]};const source=chosen.filePaths[0],abilities=await readAbilityTable(source,{langPath:unpackedPath(path.join('assets','ocr')),gzip:false,cachePath:path.join(DATA_ROOT,'ocr-cache'),workerPath:unpackedPath(path.join('node_modules','tesseract.js','src','worker-script','node','index.js'))});const mime=mimeOf(source);return {canceled:false,filePath:source,abilities,media:mime?{id:require('node:crypto').randomUUID(),name:path.basename(source),path:await s.client.upload(id,fs.readFileSync(source),path.basename(source),mime),addedAt:new Date().toISOString()}:undefined}});
  handle('file:export-text',async(event,character,text,name)=>{const s=session(event);if(!s.snapshot.characters.some(c=>c.id===character.id))throw new Error('Ficha indisponível.');const result=await dialog.showSaveDialog({defaultPath:`${String(name||character.name).replace(/[<>:"/\\|?*]/g,'_')}.txt`,filters:[{name:'Texto',extensions:['txt']}]});if(result.canceled)return false;fs.writeFileSync(result.filePath,text,'utf8');return true});
+ handle('file:export-receptacle-catalog',async(event,data)=>{const s=session(event);if(s.client.user.role!=='admin')throw new Error('Somente a mestre pode exportar o catálogo.');if(data?.format!=='rpg-receptaculos'||data?.version!==1||!Array.isArray(data.folders))throw new Error('Catálogo inválido.');const result=await dialog.showSaveDialog({defaultPath:'receptaculos-rpg.json',filters:[{name:'Receptáculos JSON',extensions:['json']}]});if(result.canceled)return false;fs.writeFileSync(result.filePath,JSON.stringify(data,null,2),'utf8');return true});
+ handle('file:export-sheet-defaults',async(event,defaults)=>{const s=session(event);if(s.client.user.role!=='admin')throw new Error('Somente a mestre pode exportar a ficha padrão.');const data=require('./sheet-defaults-file').makeSheetDefaultsFile(defaults);const result=await dialog.showSaveDialog({defaultPath:'ficha-padrao-rpg.json',filters:[{name:'Ficha padrão RPG',extensions:['json']}]});if(result.canceled||!result.filePath)return false;fs.writeFileSync(result.filePath,JSON.stringify(data,null,2),'utf8');return true});
+ handle('file:import-sheet-defaults',async event=>{const s=session(event);if(s.client.user.role!=='admin')throw new Error('Somente a mestre pode importar a ficha padrão.');const result=await dialog.showOpenDialog({properties:['openFile'],filters:[{name:'Ficha padrão RPG',extensions:['json']}]});if(result.canceled||!result.filePaths[0])return null;const file=result.filePaths[0];if(fs.statSync(file).size>32768)throw new Error('Arquivo grande demais.');return require('./sheet-defaults-file').normalizeSheetDefaults(JSON.parse(fs.readFileSync(file,'utf8')))});
  handle('data:open-folder',event=>{session(event);return shell.openPath(DATA_ROOT)});
 };
