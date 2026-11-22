@@ -48,7 +48,6 @@ module.exports=function installOnline({ipcMain,net,dialog,shell,clipboard,native
   event.sender.once('destroyed',()=>{stop(s);sessions.delete(event.sender.id)});
   connect(s);
   try{await importLocalSheetDefaults(s)}catch(error){console.error('Não foi possível importar a ficha padrão local para a VPS:',error.message)}
-  s.timer=setInterval(async()=>{if(s.polling||s.closed)return;s.polling=true;try{const latest=await client.load();const signature=JSON.stringify([latest.characters,latest.settings,latest.users]);if(s.signature&&signature!==s.signature)notify(s);s.signature=signature}catch(error){if(!s.sender.isDestroyed())s.sender.send('online:status',{connected:false,message:error.message})}finally{s.polling=false}},5000);
   s.timer=setInterval(async()=>{if(s.polling||s.closed)return;s.polling=true;try{const latest=await client.load();const signature=JSON.stringify([latest.characters,latest.settings,latest.users]);if(s.signature&&signature!==s.signature)notify(s);s.signature=signature}catch(error){if(!s.sender.isDestroyed())s.sender.send('online:status',{connected:false,message:error.message})}finally{s.polling=false}},30000);
   s.timer.unref();return load(s);
  });
@@ -119,20 +118,6 @@ module.exports=function installOnline({ipcMain,net,dialog,shell,clipboard,native
   const attributeHelp=Object.fromEntries(names.map(name=>[name,String(help[name]||'').trim()]));
   if(Object.values(attributeHelp).some(value=>value.length>20000))throw new Error('Texto de atributo muito longo.');
   await s.client.settings({...db.settings,attributeHelp});return load(s);
- });
- handle('db:update-default-gods',async(event,gods)=>{
-  const s=session(event);if(s.client.user.role!=='admin')throw new Error('Somente a mestre pode configurar as relações padrão.');
-  const entries=Object.entries(gods||{}).map(([name,value])=>[String(name).trim(),Number(value)]);
-  if(entries.length>100||entries.some(([name,value])=>!name||name.length>80||!Number.isFinite(value))||new Set(entries.map(([name])=>name.toLocaleLowerCase('pt-BR'))).size!==entries.length)throw new Error('Informe nomes de deuses únicos e afinidades numéricas.');
-  const db=await load(s);await s.client.settings({...db.settings,defaultGods:Object.fromEntries(entries)});return load(s);
- });
- handle('db:update-new-sheet-defaults',async(event,defaults)=>{
-  const s=session(event);if(s.client.user.role!=='admin')throw new Error('Somente a mestre pode configurar a ficha padrão.');
-  const attributes=Number(defaults?.attributes),newSkills=Number(defaults?.newSkills);
-  const entries=Object.entries(defaults?.gods||{}).map(([name,value])=>[String(name).trim(),Number(value)]);
-  if(!Number.isSafeInteger(attributes)||attributes<0||attributes>1000||!Number.isSafeInteger(newSkills)||newSkills<0||newSkills>1000)throw new Error('Informe pontos iniciais entre 0 e 1000.');
-  if(entries.length>100||entries.some(([name,value])=>!name||name.length>80||!Number.isFinite(value))||new Set(entries.map(([name])=>name.toLocaleLowerCase('pt-BR'))).size!==entries.length)throw new Error('Informe nomes de deuses únicos e afinidades numéricas.');
-  const db=await load(s);await s.client.settings({...db.settings,newSheetDefaults:{attributes,newSkills},defaultGods:Object.fromEntries(entries)});return load(s);
  });
  handle('db:update-default-gods',async(event,gods)=>{
   const s=session(event);if(s.client.user.role!=='admin')throw new Error('Somente a mestre pode configurar as relações padrão.');
