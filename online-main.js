@@ -38,6 +38,16 @@ module.exports=function installOnline({ipcMain,net,dialog,shell,clipboard,native
   if(current.settings?.localSheetDefaultsImported20261108)return;
   await s.client.settings({...current.settings,newSheetDefaults:{attributes:defaults.attributes,newSkills:defaults.newSkills},defaultGods:defaults.gods,localSheetDefaultsImported20261108:true});
  }
+ async function importLocalAttributeHelp(s){
+  if(s.client.user.role!=='admin')return;
+  const file=path.join(__dirname,'assets','attribute-help-migration.json');
+  if(!fs.existsSync(file))return;
+  const current=await s.client.load(),settings=current.settings||{};
+  if(settings.localAttributeHelpImported20261122)return;
+  const localHelp=JSON.parse(fs.readFileSync(file,'utf8'));
+  const attributeHelp=require('./attribute-help-migration').mergeAttributeHelp(settings,localHelp);
+  await s.client.settings({...settings,attributeHelp,localAttributeHelpImported20261122:true});
+ }
  handle('auth:status',()=>({hasUsers:true,online:true}));
  handle('auth:setup',()=>{throw new Error('A instalação online já está configurada. Entre com sua conta da campanha.')});
  handle('auth:login',async(event,data)=>{
@@ -48,6 +58,7 @@ module.exports=function installOnline({ipcMain,net,dialog,shell,clipboard,native
   event.sender.once('destroyed',()=>{stop(s);sessions.delete(event.sender.id)});
   connect(s);
   try{await importLocalSheetDefaults(s)}catch(error){console.error('Não foi possível importar a ficha padrão local para a VPS:',error.message)}
+  try{await importLocalAttributeHelp(s)}catch(error){console.error('Não foi possível importar as informações dos atributos para a VPS:',error.message)}
   s.timer=setInterval(async()=>{if(s.polling||s.closed)return;s.polling=true;try{const latest=await client.load();const signature=JSON.stringify([latest.characters,latest.settings,latest.users]);if(s.signature&&signature!==s.signature)notify(s);s.signature=signature}catch(error){if(!s.sender.isDestroyed())s.sender.send('online:status',{connected:false,message:error.message})}finally{s.polling=false}},30000);
   s.timer.unref();return load(s);
  });
