@@ -3,6 +3,7 @@ const {applyProgression}=require('./src/progression');
 const mapUser=user=>({...user,role:user.role==='primary_master'?'admin':user.role});
 class OnlineClient {
  constructor({fetch=globalThis.fetch,fallbackFetch=null,baseUrl=API_URL}={}){this.fetch=fetch;this.fallbackFetch=fallbackFetch;this.baseUrl=baseUrl;this.token=null;this.user=null;this.campaign=null;}
+ characterFromRow(row){const character={...row.data,id:row.id,name:row.name,ownerUserId:row.owner_user_id,archived:Boolean(row.archived_at),updatedAt:row.updated_at,_remoteVersion:row.version,_remoteCampaignId:row.campaign_id};applyProgression(character);return character}
  async request(route,method='GET',body){
   const headers={};if(this.token)headers.Authorization=`Bearer ${this.token}`;
   if(body!==undefined)headers['Content-Type']='application/json';
@@ -29,14 +30,15 @@ class OnlineClient {
   if(!this.token||!this.campaign)throw new Error('Sessão expirada. Entre novamente.');
   const id=this.campaign.id,admin=this.user.role==='admin';
   const [active,archived,settings,users]=await Promise.all([this.request(`/campaigns/${id}/characters`),admin?this.request(`/campaigns/${id}/characters?archived=true`):[],this.request(`/campaigns/${id}/settings`),admin?this.request('/users'):[]]);
-  return {characters:[...active,...archived].map(row=>{const character={...row.data,id:row.id,name:row.name,ownerUserId:row.owner_user_id,archived:Boolean(row.archived_at),updatedAt:row.updated_at,_remoteVersion:row.version,_remoteCampaignId:row.campaign_id};applyProgression(character);return character}),settings,npcs:admin?(settings.npcs||[]):[],users:users.filter(u=>u.active).map(mapUser),sessionUser:this.user,online:true};
+  return {characters:[...active,...archived].map(row=>this.characterFromRow(row)),settings,npcs:admin?(settings.npcs||[]):[],users:users.filter(u=>u.active).map(mapUser),sessionUser:this.user,online:true};
  }
+ async character(id){return this.characterFromRow(await this.request(`/characters/${encodeURIComponent(id)}`))}
  async save(character){
   const data={...character};delete data._remoteVersion;delete data._remoteCampaignId;
   applyProgression(data);
   let row;if(character._remoteVersion){row=await this.request(`/characters/${character.id}`,'PUT',{version:character._remoteVersion,data,source:character.changeSource})}
   else row=await this.request(`/campaigns/${this.campaign.id}/characters`,'POST',{data,ownerUserId:character.ownerUserId});
-  if(Boolean(character.archived)!==Boolean(row.archived_at))await this.request(`/characters/${row.id}/archive`,'PATCH',{archived:Boolean(character.archived)});
+  if(Boolean(character.archived)!==Boolean(row.archived_at))row=await this.request(`/characters/${row.id}/archive`,'PATCH',{archived:Boolean(character.archived)});
   return row;
  }
  async settings(data){return this.request(`/campaigns/${this.campaign.id}/settings`,'PUT',data)}

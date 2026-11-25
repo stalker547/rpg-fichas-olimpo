@@ -11,10 +11,20 @@ test('online login reads campaign, remote versions and assigned owner',async()=>
  const data=await client.login({username:'master',password:'test'});
  assert.equal(data.sessionUser.role,'admin');assert.equal(data.characters[0]._remoteVersion,9);assert.equal(data.characters[0].ownerUserId,'player');assert.equal(data.characters[0].name,'Nome online');assert.ok(paths.includes('/campaigns/campaign/characters'));
 });
+test('verificação antes de salvar consulta somente a ficha selecionada',async()=>{
+ const paths=[];const client=new OnlineClient({fetch:async url=>{paths.push(new URL(url).pathname);return {ok:true,text:async()=>JSON.stringify({id:'hero',name:'Lyra',owner_user_id:'player',campaign_id:'campaign',version:4,data:{name:'Lyra',profile:{level:2}}})}}});
+ const character=await client.character('hero');
+ assert.deepEqual(paths,['/characters/hero']);assert.equal(character._remoteVersion,4);assert.equal(character.ownerUserId,'player');
+});
 test('save sends original version and removes client metadata',async()=>{
  let sent;const client=new OnlineClient({fetch:async(url,options)=>{sent=JSON.parse(options.body);return {ok:true,text:async()=>JSON.stringify({id:'a',version:3})}}});
  await client.save({id:'a',name:'A',changeSource:'txt-import',_remoteVersion:2,_remoteCampaignId:'c'});
  assert.equal(sent.version,2);assert.equal(sent.data._remoteVersion,undefined);assert.equal(sent.source,'txt-import');assert.equal(sent.data.changeSource,'txt-import');
+});
+test('salvamento de ficha arquivada retorna a versão após arquivar',async()=>{
+ const paths=[];const client=new OnlineClient({fetch:async(url,options)=>{paths.push([new URL(url).pathname,options.method]);const archived=options.method==='PATCH';return {ok:true,text:async()=>JSON.stringify({id:'hero',name:'Lyra',version:archived?5:4,archived_at:archived?'2026-11-25T00:00:00Z':null,data:{name:'Lyra'}})}}});
+ const row=await client.save({id:'hero',name:'Lyra',archived:true,_remoteVersion:3});
+ assert.equal(row.version,5);assert.ok(row.archived_at);assert.deepEqual(paths,[['/characters/hero','PUT'],['/characters/hero/archive','PATCH']]);
 });
 test('network failure never falls back to the local database',async()=>{
  const client=new OnlineClient({fetch:async()=>{throw new Error('offline')}});

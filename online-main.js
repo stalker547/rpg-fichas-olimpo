@@ -99,16 +99,20 @@ module.exports=function installOnline({ipcMain,net,dialog,shell,clipboard,native
   fs.writeFileSync(pendingFile,JSON.stringify({savedAt:new Date().toISOString(),character,settings}),'utf8');
   let before=s.versions?.get(`${character.id}:${character._remoteVersion}`)||s.snapshot?.characters.find(c=>c.id===character.id),changes,row;
   for(let attempt=0;attempt<3;attempt++){
-   if(character._remoteVersion&&before){const latest=(await s.client.load()).characters.find(c=>c.id===character.id);if(!latest)throw new Error('A ficha foi removida ou você não tem mais acesso.');if(latest._remoteVersion!==character._remoteVersion){character=mergeCharacter(before,character,latest,{preferRemote:s.client.user.role==='player'?['receptacleCapacity']:[]});before=latest}}
+   if(character._remoteVersion&&before){const latest=await s.client.character(character.id);if(latest._remoteVersion!==character._remoteVersion){character=mergeCharacter(before,character,latest,{preferRemote:s.client.user.role==='player'?['receptacleCapacity']:[]});before=latest}}
    changes=changesBetween(before,character);
    character.history=structuredClone(before?.history||character.history||[]);if(changes.length)character.history.unshift({id:require('node:crypto').randomUUID(),at:new Date().toISOString(),note:character.changeNote||'Alteração manual',changes,userName:s.client.user.name,userId:s.client.user.id,userRole:s.client.user.role});
    if(character._remoteVersion)await uploadPaths(s,character.id,character);
    try{row=await s.client.save(character);break}catch(error){if(error.status!==409||attempt===2||!character._remoteVersion)throw error}
   }
-  if(!character._remoteVersion){character.id=row.id;character._remoteVersion=row.version;await uploadPaths(s,row.id,character);await s.client.save(character)}
-  if(s.client.user.role==='admin'&&settings&&JSON.stringify(settings)!==JSON.stringify(s.snapshot?.settings))await s.client.settings(settings);
-  if(s.client.user.role==='player'&&settings){const id=s.client.user.id,amount=Number(settings.solosByUser?.[id])||0;if(amount!==(Number(s.snapshot?.settings?.solosByUser?.[id])||0))await s.client.request(`/campaigns/${s.client.campaign.id}/solos`,'PATCH',{amount})}
-  const db=await load(s);fs.unlinkSync(pendingFile);return {db,changes,characterId:row.id};
+  if(!character._remoteVersion){character.id=row.id;character._remoteVersion=row.version;await uploadPaths(s,row.id,character);row=await s.client.save(character)}
+  let nextSettings=s.snapshot?.settings||{};
+  if(s.client.user.role==='admin'&&settings&&JSON.stringify(settings)!==JSON.stringify(nextSettings))nextSettings=await s.client.settings(settings);
+  if(s.client.user.role==='player'&&settings){const id=s.client.user.id,amount=Number(settings.solosByUser?.[id])||0;if(amount!==(Number(nextSettings.solosByUser?.[id])||0)){await s.client.request(`/campaigns/${s.client.campaign.id}/solos`,'PATCH',{amount});nextSettings={...nextSettings,solosByUser:{...nextSettings.solosByUser,[id]:amount}}}}
+  const saved=s.client.characterFromRow(row);
+  s.snapshot={...s.snapshot,characters:[...(s.snapshot?.characters||[]).filter(item=>item.id!==saved.id),saved].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')),settings:nextSettings,npcs:s.client.user.role==='admin'?(nextSettings.npcs||[]):s.snapshot?.npcs||[]};
+  s.versions||=new Map();s.versions.set(`${saved.id}:${saved._remoteVersion}`,structuredClone(saved));
+  fs.unlinkSync(pendingFile);return {db:structuredClone(s.snapshot),changes,characterId:row.id};
  });
  handle('db:delete-character',async(event,id)=>{const s=session(event);await s.client.request(`/characters/${id}`,'DELETE');return load(s)});
  handle('db:export-backup',async event=>{const s=session(event);if(s.client.user.role!=='admin')throw new Error('Somente a mestre pode criar backups.');const backup=await s.client.backup(),result=await dialog.showSaveDialog({defaultPath:`Backup RPG Fichas ${new Date().toISOString().slice(0,10)}.rpgbackup`,filters:[{name:'Backup RPG Fichas',extensions:['rpgbackup']}]});if(result.canceled)return false;fs.writeFileSync(result.filePath,JSON.stringify(backup),'utf8');return true});
