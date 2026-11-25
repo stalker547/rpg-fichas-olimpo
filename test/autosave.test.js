@@ -10,7 +10,7 @@ function autosaveHarness(saveCharacter){
  const saveStart=source.indexOf('async function save('),saveEnd=source.indexOf('\nfunction exportText(',saveStart);
  const state={textContent:'',classList:{add(){},remove(){}}},button={textContent:'Salvar alterações',disabled:false};
  const timers=new Map(),pendingChanges=[];let nextTimer=0;
- const sandbox={db:{characters:[{id:'hero',name:'Antes',_remoteVersion:1}],settings:{solosByUser:{u1:0}}},draft:{id:'hero',name:'Antes',_remoteVersion:1},currentId:'hero',dirty:false,pendingNote:'',editRevision:0,autoSaveTimer:null,saveInFlight:null,autoSaveErrorNotified:false,savedSharedSolos:0,
+ const sandbox={db:{characters:[{id:'hero',name:'Antes',_remoteVersion:1}],settings:{solosByUser:{u1:0}}},draft:{id:'hero',name:'Antes',_remoteVersion:1},currentId:'hero',dirty:false,pendingNote:'',editRevision:0,autoSaveTimer:null,saveInFlight:null,autoSaveErrorNotified:false,autoSaveFailures:0,savedSharedSolos:0,
   $:selector=>selector==='#save-state'?state:selector==='#save'?button:null,
   setTimeout:callback=>{timers.set(++nextTimer,callback);return nextTimer},clearTimeout:id=>timers.delete(id),
   window:{rpg:{saveCharacter,setPendingChanges:pending=>pendingChanges.push(pending)}},
@@ -47,7 +47,7 @@ test('falha online mantém alterações pendentes',async()=>{
  const {sandbox,state,timers}=autosaveHarness(async()=>{throw new Error('Sem conexão')});
  sandbox.draft.name='Não perder';sandbox.markDirty();
  assert.equal(await sandbox.save({automatic:true}),false);
- assert.equal(sandbox.dirty,true);assert.equal(sandbox.draft.name,'Não perder');assert.match(state.textContent,/nova tentativa/);
+ assert.equal(sandbox.dirty,true);assert.equal(sandbox.draft.name,'Não perder');assert.match(state.textContent,/mais uma tentativa/);
  assert.equal(timers.size,1);
 });
 
@@ -62,4 +62,11 @@ test('salvamento volta a tentar após a conexão retornar',async()=>{
  const retry=[...timers.values()][0];timers.clear();retry();
  await sandbox.saveInFlight;
  assert.equal(calls,2);assert.equal(sandbox.dirty,false);assert.equal(sandbox.draft.name,'Persistido');
+});
+
+test('duas falhas interrompem repetição automática e deixam a falha visível',async()=>{
+ let calls=0;const {sandbox,state,timers,button}=autosaveHarness(async()=>{calls++;throw new Error('Servidor indisponível')});
+ sandbox.markDirty();assert.equal(await sandbox.save({automatic:true}),false);
+ const retry=[...timers.values()][0];timers.clear();retry();await sandbox.saveInFlight;
+ assert.equal(calls,2);assert.equal(timers.size,0);assert.match(state.textContent,/Falha ao salvar/);assert.equal(button.disabled,false);
 });

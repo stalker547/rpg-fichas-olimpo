@@ -3,7 +3,7 @@ const tabs = [
   ['personagem','Informações'],['inventario','Inventário'],['companheiros','Companheiros'],['galeria','Galeria'],['historico','Histórico'],['historico-rolagens','Histórico de rolagens']
 ];
 let db = null, currentId = null, activeTab = 'resumo', activeView = 'sheets', selectedNpcId = null, directorySearch = '', directoryTableFilter = 'all', directoryLayout = 'compact', draft = null, npcDraft = null, dirty = false, pendingNote = '', historySearch = '', savedSharedSolos = 0, authSetupMode = false;
-let autoSaveTimer = null, saveInFlight = null, editRevision = 0, autoSaveErrorNotified = false;
+let autoSaveTimer = null, saveInFlight = null, editRevision = 0, autoSaveErrorNotified = false, autoSaveFailures = 0;
 let editingCharacterId = null;
 let lastShownCharacterId = null;
 let rollAttribute='',rollSkills=new Set(),rollEffectAbilities=new Set(),lastRollResult=null,rollDieInput='',rollOutcomeInput='',rollProgressType='skill',receptacleView='standard',rollSearch='',rollAbilitiesHidden=false,rollSkillsHidden=false;
@@ -165,9 +165,9 @@ function current() { return db.characters.find(c => c.id === currentId); }
 function solosOwnerId(character=draft){return character?.ownerUserId||db?.sessionUser?.id||''}
 function sharedSolos(character=draft){return n(db?.settings?.solosByUser?.[solosOwnerId(character)])}
 function setSharedSolos(amount,character=draft){db.settings||={};db.settings.solosByUser||={};db.settings.solosByUser[solosOwnerId(character)]=Math.max(0,n(amount))}
-function queueAutoSave(delay=1500){clearTimeout(autoSaveTimer);if(!dirty||!draft||!db)return;autoSaveTimer=setTimeout(()=>{autoSaveTimer=null;if(dirty)void save({automatic:true})},delay)}
-function markDirty(note='') { dirty = true; window.rpg.setPendingChanges?.(true); editRevision++; if(note)pendingNote=note;$('#save-state').textContent = 'Alterações pendentes · salvando em instantes'; $('#save-state').classList.add('dirty');$('#save-state').classList.remove('saved');queueAutoSave(); }
-function clean() { clearTimeout(autoSaveTimer);autoSaveTimer=null;dirty = false; window.rpg.setPendingChanges?.(false); pendingNote='';autoSaveErrorNotified=false;const now=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});$('#save-state').textContent = `✓ Salvo às ${now}`; $('#save-state').classList.remove('dirty');$('#save-state').classList.add('saved'); }
+function queueAutoSave(delay=1500){clearTimeout(autoSaveTimer);if(!dirty||!draft||!db||autoSaveFailures>=2)return;autoSaveTimer=setTimeout(()=>{autoSaveTimer=null;if(dirty)void save({automatic:true})},delay)}
+function markDirty(note='') { dirty = true; autoSaveFailures=0; window.rpg.setPendingChanges?.(true); editRevision++; if(note)pendingNote=note;$('#save-state').textContent = 'Alterações pendentes · salvando em instantes'; $('#save-state').classList.add('dirty');$('#save-state').classList.remove('saved');queueAutoSave(); }
+function clean() { clearTimeout(autoSaveTimer);autoSaveTimer=null;dirty = false; window.rpg.setPendingChanges?.(false); pendingNote='';autoSaveErrorNotified=false;autoSaveFailures=0;const now=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});$('#save-state').textContent = `✓ Salvo às ${now}`; $('#save-state').classList.remove('dirty');$('#save-state').classList.add('saved'); }
 function toast(title, body='', error=false) { const node=document.createElement('div');node.className=`toast${error?' error':''}`;node.innerHTML=`<strong>${esc(title)}</strong><span>${esc(body)}</span>`;$('#toast-area').append(node);setTimeout(()=>node.remove(),5200); }
 function showUpdateProgress(status={}){if(status.stage==='error'){$('#update-progress-modal')?.remove();toast('Atualização interrompida',status.message||'Tente novamente.',true);return}let modal=$('#update-progress-modal');if(!modal){modal=document.createElement('div');modal.id='update-progress-modal';modal.className='modal update-progress-modal';modal.innerHTML='<div class="modal-card update-progress-card"><div class="update-spinner"></div><h2 id="update-progress-title">Atualização em andamento</h2><p id="update-progress-message">Aguarde. Não feche o aplicativo.</p><div class="progress"><span id="update-progress-bar"></span></div><strong id="update-progress-percent"></strong><small id="update-progress-detail"></small></div>';document.body.append(modal)}const connecting=status.stage==='connecting',installing=status.stage==='installing',restarting=status.stage==='restarting',percent=Math.max(0,Math.min(100,n(status.percent))),mb=value=>`${(n(value)/1048576).toFixed(1)} MB`,speed=status.bytesPerSecond?`${mb(status.bytesPerSecond)}/s`:'';$('#update-progress-title').textContent=installing?'Instalando atualização':restarting?'Reabrindo aplicativo':connecting?'Conectando ao GitHub':'Atualização em andamento';$('#update-progress-message').textContent=installing?'O aplicativo fechará agora e abrirá novamente quando a instalação terminar.':restarting?'O aplicativo local fechará e abrirá novamente.':connecting?'Procurando a versão mais recente. Isso normalmente leva poucos segundos.':'Baixando a nova versão. Aguarde e não feche o aplicativo.';const bar=$('#update-progress-bar');bar.classList.toggle('indeterminate',connecting);bar.style.width=`${installing||restarting?100:connecting?35:percent}%`;$('#update-progress-percent').textContent=installing?'Preparando instalação…':restarting?'Aguarde…':connecting?'Conectando…':`${percent}%`;$('#update-progress-detail').textContent=!connecting&&status.total?`${mb(status.transferred)} de ${mb(status.total)}${speed?` · ${speed}`:''}`:''}
 function value(path, fallback='') { return path.split('.').reduce((o,k)=>o?.[k],draft) ?? fallback; }
@@ -907,11 +907,13 @@ async function save(options={}){
  clearTimeout(autoSaveTimer);autoSaveTimer=null;
  if(saveInFlight){const succeeded=await saveInFlight;return succeeded&&dirty?save({automatic}):succeeded}
  if(!dirty)return true;
+ if(!automatic)autoSaveFailures=0;
  if(playerSheetLocked()){if(!automatic)toast('Ficha bloqueada','Desbloqueie pelo cadeado ao lado do nome do personagem para editar.',true);return false}
  const revision=editRevision,characterId=currentId,snapshot=clone(draft),settings=clone(db.settings||{}),note=pendingNote;
  snapshot.changeNote=note||'Atualização da ficha';
  $('#save-state').textContent=automatic?'Salvando automaticamente…':'Salvando…';
  const buttons=[$('#save'),$('#save-info')].filter(Boolean);buttons.forEach(button=>{button.disabled=true;button.textContent='Salvando...'});
+ const slowTimer=setTimeout(()=>{if(saveInFlight)$('#save-state').textContent='Salvamento demorando · aguardando resposta do servidor'},25000);
  const operation=(async()=>{
   try{
    const result=await window.rpg.saveCharacter(snapshot,settings),ownerId=solosOwnerId(snapshot),pendingShared=n(db.settings?.solosByUser?.[ownerId]),sharedChanged=revision!==editRevision&&pendingShared!==n(settings.solosByUser?.[ownerId]);db=result.db;
@@ -924,10 +926,10 @@ async function save(options={}){
    showNewPointGrantToast();
    if(!automatic){toast('✓ Ficha salva com sucesso',result.changes.length?`${result.changes.length} alteração(ões) registrada(s) no histórico.`:'Nenhuma nova alteração encontrada.');const completed=result.changes.filter(change=>String(change.field).endsWith('.current')&&n(change.after)>n(change.before));if(completed.length)toast('Progresso atualizado',completed.map(change=>`${change.before} → ${change.after}`).join(', '))}
    return true;
-  }catch(error){const message=String(error.message||error).replace(/^Error invoking remote method '[^']+':\s*(Error:\s*)?/i,'');$('#save-state').textContent='Não foi possível salvar · nova tentativa em instantes';$('#save-state').classList.add('dirty');if(!automatic||!autoSaveErrorNotified)toast('Não foi possível concluir o salvamento',message+' As alterações continuam pendentes; uma cópia foi guardada na pasta de dados.',true);autoSaveErrorNotified=true;return false}
+  }catch(error){autoSaveFailures++;const message=String(error.message||error).replace(/^Error invoking remote method '[^']+':\s*(Error:\s*)?/i,'');$('#save-state').textContent=autoSaveFailures>=2?'Falha ao salvar · clique em Salvar alterações':'Não foi possível salvar · mais uma tentativa automática';$('#save-state').classList.add('dirty');if(!automatic||!autoSaveErrorNotified)toast('Não foi possível concluir o salvamento',message+' As alterações continuam pendentes; uma cópia foi guardada na pasta de dados.',true);autoSaveErrorNotified=true;return false}
  })();
  saveInFlight=operation;
- try{return await operation}finally{saveInFlight=null;buttons.forEach(button=>{button.textContent='Salvar alterações';button.disabled=false});if(dirty)queueAutoSave(editRevision!==revision?1500:10000)}
+ try{return await operation}finally{clearTimeout(slowTimer);saveInFlight=null;buttons.forEach(button=>{button.textContent='Salvar alterações';button.disabled=false});if(dirty)queueAutoSave(editRevision!==revision?1500:10000)}
 }
 function exportText(){
  const a=draft.attributes||{},bag=draft.backpack||{petFood:0,specialPetFood:0,travelMeals:0,premiumTravelMeals:0,jobs:[],items:[]},health=healthValues();
