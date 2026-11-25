@@ -3,7 +3,7 @@ const tabs = [
   ['personagem','Informações'],['inventario','Inventário'],['companheiros','Companheiros'],['galeria','Galeria'],['historico','Histórico'],['historico-rolagens','Histórico de rolagens']
 ];
 let db = null, currentId = null, activeTab = 'resumo', activeView = 'sheets', selectedNpcId = null, directorySearch = '', directoryTableFilter = 'all', directoryLayout = 'compact', draft = null, npcDraft = null, dirty = false, pendingNote = '', historySearch = '', savedSharedSolos = 0, authSetupMode = false;
-let autoSaveTimer = null, saveInFlight = null, editRevision = 0, autoSaveErrorNotified = false, autoSaveFailures = 0;
+let saveInFlight = null, editRevision = 0;
 let editingCharacterId = null;
 let lastShownCharacterId = null;
 let rollAttribute='',rollSkills=new Set(),rollEffectAbilities=new Set(),lastRollResult=null,rollDieInput='',rollOutcomeInput='',rollProgressType='skill',receptacleView='standard',rollSearch='',rollAbilitiesHidden=false,rollSkillsHidden=false;
@@ -165,9 +165,9 @@ function current() { return db.characters.find(c => c.id === currentId); }
 function solosOwnerId(character=draft){return character?.ownerUserId||db?.sessionUser?.id||''}
 function sharedSolos(character=draft){return n(db?.settings?.solosByUser?.[solosOwnerId(character)])}
 function setSharedSolos(amount,character=draft){db.settings||={};db.settings.solosByUser||={};db.settings.solosByUser[solosOwnerId(character)]=Math.max(0,n(amount))}
-function queueAutoSave(delay=1500){clearTimeout(autoSaveTimer);if(!dirty||!draft||!db||autoSaveFailures>=2)return;autoSaveTimer=setTimeout(()=>{autoSaveTimer=null;if(dirty)void save({automatic:true})},delay)}
-function markDirty(note='') { dirty = true; autoSaveFailures=0; window.rpg.setPendingChanges?.(true); editRevision++; if(note)pendingNote=note;$('#save-state').textContent = 'Alterações pendentes · salvando em instantes'; $('#save-state').classList.add('dirty');$('#save-state').classList.remove('saved');queueAutoSave(); }
-function clean() { clearTimeout(autoSaveTimer);autoSaveTimer=null;dirty = false; window.rpg.setPendingChanges?.(false); pendingNote='';autoSaveErrorNotified=false;autoSaveFailures=0;const now=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});$('#save-state').textContent = `✓ Salvo às ${now}`; $('#save-state').classList.remove('dirty');$('#save-state').classList.add('saved'); }
+function markDirty(note='') { dirty = true; window.rpg.setPendingChanges?.(true); editRevision++; if(note)pendingNote=note;$('#save-state').textContent = 'Alterações pendentes · clique em Salvar alterações'; $('#save-state').classList.add('dirty');$('#save-state').classList.remove('saved'); }
+function requireSavedChanges(){if(!dirty)return true;toast('Alterações pendentes','Clique em Salvar alterações antes de continuar.',true);return false}
+function clean() { dirty = false; window.rpg.setPendingChanges?.(false); pendingNote='';const now=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});$('#save-state').textContent = `✓ Salvo às ${now}`; $('#save-state').classList.remove('dirty');$('#save-state').classList.add('saved'); }
 function toast(title, body='', error=false) { const node=document.createElement('div');node.className=`toast${error?' error':''}`;node.innerHTML=`<strong>${esc(title)}</strong><span>${esc(body)}</span>`;$('#toast-area').append(node);setTimeout(()=>node.remove(),5200); }
 function showUpdateProgress(status={}){if(status.stage==='error'){$('#update-progress-modal')?.remove();toast('Atualização interrompida',status.message||'Tente novamente.',true);return}let modal=$('#update-progress-modal');if(!modal){modal=document.createElement('div');modal.id='update-progress-modal';modal.className='modal update-progress-modal';modal.innerHTML='<div class="modal-card update-progress-card"><div class="update-spinner"></div><h2 id="update-progress-title">Atualização em andamento</h2><p id="update-progress-message">Aguarde. Não feche o aplicativo.</p><div class="progress"><span id="update-progress-bar"></span></div><strong id="update-progress-percent"></strong><small id="update-progress-detail"></small></div>';document.body.append(modal)}const connecting=status.stage==='connecting',installing=status.stage==='installing',restarting=status.stage==='restarting',percent=Math.max(0,Math.min(100,n(status.percent))),mb=value=>`${(n(value)/1048576).toFixed(1)} MB`,speed=status.bytesPerSecond?`${mb(status.bytesPerSecond)}/s`:'';$('#update-progress-title').textContent=installing?'Instalando atualização':restarting?'Reabrindo aplicativo':connecting?'Conectando ao GitHub':'Atualização em andamento';$('#update-progress-message').textContent=installing?'O aplicativo fechará agora e abrirá novamente quando a instalação terminar.':restarting?'O aplicativo local fechará e abrirá novamente.':connecting?'Procurando a versão mais recente. Isso normalmente leva poucos segundos.':'Baixando a nova versão. Aguarde e não feche o aplicativo.';const bar=$('#update-progress-bar');bar.classList.toggle('indeterminate',connecting);bar.style.width=`${installing||restarting?100:connecting?35:percent}%`;$('#update-progress-percent').textContent=installing?'Preparando instalação…':restarting?'Aguarde…':connecting?'Conectando…':`${percent}%`;$('#update-progress-detail').textContent=!connecting&&status.total?`${mb(status.transferred)} de ${mb(status.total)}${speed?` · ${speed}`:''}`:''}
 function value(path, fallback='') { return path.split('.').reduce((o,k)=>o?.[k],draft) ?? fallback; }
@@ -231,7 +231,7 @@ function openPointGrantNotifications(){
  refreshPointGrantNotifications();const groups=groupedPointGrants().slice(0,30);
  $('#point-notifications-list').innerHTML=groups.length?groups.map(group=>`<article class="user-assignment-card"><div><strong>${esc(group.character.name)}${group.unread?'':' · Lido'}</strong><small>${esc(pointGrantGroupDescription(group))} · Último envio: ${new Date(group.latestAt).toLocaleString('pt-BR')}</small></div><div class="point-grant-actions"><button class="primary small-btn" data-open-point-grant="${esc(group.character.id)}">Abrir ficha</button><button class="danger-link point-grant-dismiss" data-dismiss-point-grant="${esc(group.character.id)}" title="Remover notificação" aria-label="Remover notificação de ${esc(group.character.name)}">×</button></div></article>`).join(''):empty('Nenhum ponto recebido ainda.');
  $('#point-notifications-modal').classList.remove('hidden');
- document.querySelectorAll('[data-open-point-grant]').forEach(button=>button.onclick=async()=>{if(dirty&&!await save({automatic:true}))return;const group=groups.find(item=>item.character.id===button.dataset.openPointGrant);if(!group)return;const seen=seenPointGrants();for(const notice of group.notices)seen.add(notice.id);try{localStorage.setItem(pointGrantStorageKey(),JSON.stringify([...seen].slice(-500)))}catch{}currentId=group.character.id;draft=clone(current());activeView='sheets';activeTab='ficha';$('#point-notifications-modal').classList.add('hidden');render();clean()});
+ document.querySelectorAll('[data-open-point-grant]').forEach(button=>button.onclick=async()=>{if(!requireSavedChanges())return;const group=groups.find(item=>item.character.id===button.dataset.openPointGrant);if(!group)return;const seen=seenPointGrants();for(const notice of group.notices)seen.add(notice.id);try{localStorage.setItem(pointGrantStorageKey(),JSON.stringify([...seen].slice(-500)))}catch{}currentId=group.character.id;draft=clone(current());activeView='sheets';activeTab='ficha';$('#point-notifications-modal').classList.add('hidden');render();clean()});
  document.querySelectorAll('[data-dismiss-point-grant]').forEach(button=>button.onclick=async()=>{const group=groups.find(item=>item.character.id===button.dataset.dismissPointGrant);if(!group)return;button.disabled=true;try{const updated=await window.rpg.dismissPointGrants(group.character.id,group.notices.map(notice=>notice.id));const saved=updated.characters.find(character=>character.id===group.character.id);const current=db.characters.find(character=>character.id===group.character.id);if(current&&saved)current.pointGrantNotices=clone(saved.pointGrantNotices||[]);if(draft?.id===group.character.id&&saved)draft.pointGrantNotices=clone(saved.pointGrantNotices||[]);openPointGrantNotifications();refreshPointGrantNotifications();renderSidebar()}catch(error){button.disabled=false;toast('Não foi possível remover o aviso',error.message||String(error),true)}});
 }
 function pendingAbilityRequests(){if(db?.sessionUser?.role!=='admin')return [];return (db.characters||[]).flatMap(character=>(character.ideas||[]).filter(idea=>idea.status==='Pedido para a mestre'||idea.status==='Aprovada'&&idea.developmentRequested&&!n(idea.initialRequirement)).map(idea=>({character,idea})))}
@@ -554,11 +554,9 @@ async function registerOnlineRoll(roll,outcome){
      if(typeof local==='string'&&typeof remote==='string'&&local!==base&&remote!==base&&local!==remote&&!local.includes(remote)&&!remote.includes(local))draft[field]=`${remote}\n\n--- Outra edição preservada ---\n\n${local}`;
     }
     for(const group of ['skills','quests','learning','creations','abilities','rollHistory'])draft[group]=clone(saved[group]||[]);
-    // Keep the draft's original version so the queued save merges unrelated
-    // changes made online while the roll was being recorded.
-    queueAutoSave();
+    // Preserve the draft's version so a later manual save can merge unrelated changes.
    }else{draft=clone(saved);clean()}
-   restoreRollSelection(selected);
+   if(outcome==='failure')restoreRollSelection(selected);else clearRollSelectionAfterSuccess();
    const success=outcome!=='failure',label=outcome==='critical'?'Crítico':success?'Sucesso':'Fracasso',advanced=result.advanced||[],failures=result.failures||[];
    const shownFailures=failures.filter(detail=>!/(?:—\s*)?(?:sucessos|falhas)\s+\d+\/\d+$/i.test(detail));lastRollResult={die:label,modifier:roll.modifier,total:label,success,critical:outcome==='critical',advanced,failures:shownFailures};render();
    toast('Rolagem salva',advanced.length?`Progresso: ${advanced.join(', ')}.`:shownFailures.length?shownFailures.join(', '):'Resultado registrado na ficha.');
@@ -566,6 +564,7 @@ async function registerOnlineRoll(roll,outcome){
  }catch(error){toast('Não foi possível registrar a rolagem',error.message||String(error),true)}
  finally{rollSubmissionInFlight=false}
 }
+function clearRollSelectionAfterSuccess(){rollSkills.clear();rollEffectAbilities.clear();rollAttribute='__none__';rollOutcomeInput=''}
 function registerRollResult(){
  const creationMode=rollProgressType==='creation',outcome=$('#roll-outcome-value')?.value;
  if(!(creationMode?['critical','success','failure']:['success','failure']).includes(outcome)){toast('Escolha o resultado',creationMode?'Selecione Crítico, Sucesso ou Fracasso.':'Selecione Sucesso ou Fracasso.',true);$('#roll-outcome-value')?.focus();return}
@@ -591,7 +590,7 @@ function registerRollResult(){
  }
  for(const item of [...new Set(completedLearning)]){const index=draft.learning.indexOf(item);if(index<0)continue;if(!(draft.skills||[]).some(skill=>normalizeName(skill.name)===normalizeName(item.name))){draft.skills||=[];draft.skills.push({id:uid(),name:item.name||'Nova perícia',value:1,bonus:0,successCount:0,failureCount:0})}draft.learning.splice(index,1)}
  globalThis.RpgProgression?.startSkillQuests(draft);
- if(typeof restoreRollSelection==='function')restoreRollSelection(roll.selected);
+ if(success)clearRollSelectionAfterSuccess();else restoreRollSelection(roll.selected);
  draft.rollHistory ||= [];draft.rollHistory.unshift({id:`roll-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,at:new Date().toISOString(),userName:typeof db!=='undefined'?db.sessionUser?.name||'':'',progressType:rollProgressType,formula:roll.formula,attribute:roll.attribute||'',attributeValue:n(roll.attributeValue),items:roll.selected.map(item=>({name:item.name||'',kind:item.creation?'creation':item.ability?'ability':item.quest?'quest':item.learning?'learning':item.temporary?'temporary':'skill'})),effects:(roll.effects||[]).map(item=>item.name||''),outcome,successTarget:n(roll.successTarget)||50,progressNotes});if(draft.rollHistory.length>200)draft.rollHistory.length=200;
  markDirty(creationMode?`${critical?'Crítico':'Criação atualizada'}: ${[...advanced,...failures].join(', ')}`:success?`Sucesso na rolagem: ${advanced.join(', ')||'sem progresso selecionado'}`:`Falha registrada: ${failures.join(', ')||'sem progresso selecionado'}`);
  const resultLabel=critical?'Crítico':success?'Sucesso':'Fracasso',shownFailures=failures.filter(detail=>!/(?:—\s*)?(?:sucessos|falhas)\s+\d+\/\d+$/i.test(detail));lastRollResult={die:resultLabel,modifier:roll.modifier,total:resultLabel,success,critical,advanced,failures:shownFailures};render();const detail=creationMode?[...advanced,...shownFailures].join(', '):advanced.length?`Progresso: ${advanced.join(', ')}.`:shownFailures.length?`Falha acumulada em: ${shownFailures.join(', ')}.`:'Resultado registrado na ficha.';toast(resultLabel,detail)
@@ -902,16 +901,13 @@ async function deleteCurrentCharacter(){
  }catch(error){toast('Não foi possível excluir',error.message||String(error),true)}
 }
 
-async function save(options={}){
- const automatic=options?.automatic===true;
- clearTimeout(autoSaveTimer);autoSaveTimer=null;
- if(saveInFlight){const succeeded=await saveInFlight;return succeeded&&dirty?save({automatic}):succeeded}
+async function save(){
+ if(saveInFlight)return saveInFlight;
  if(!dirty)return true;
- if(!automatic)autoSaveFailures=0;
- if(playerSheetLocked()){if(!automatic)toast('Ficha bloqueada','Desbloqueie pelo cadeado ao lado do nome do personagem para editar.',true);return false}
+ if(playerSheetLocked()){toast('Ficha bloqueada','Desbloqueie pelo cadeado ao lado do nome do personagem para editar.',true);return false}
  const revision=editRevision,characterId=currentId,snapshot=clone(draft),settings=clone(db.settings||{}),note=pendingNote;
  snapshot.changeNote=note||'Atualização da ficha';
- $('#save-state').textContent=automatic?'Salvando automaticamente…':'Salvando…';
+ $('#save-state').textContent='Salvando…';
  const buttons=[$('#save'),$('#save-info')].filter(Boolean);buttons.forEach(button=>{button.disabled=true;button.textContent='Salvando...'});
  const slowTimer=setTimeout(()=>{if(saveInFlight)$('#save-state').textContent='Salvamento demorando · aguardando resposta do servidor'},25000);
  const operation=(async()=>{
@@ -920,16 +916,16 @@ async function save(options={}){
    if(sharedChanged)setSharedSolos(pendingShared,snapshot);
    if(currentId===characterId){
     const saved=db.characters.find(character=>character.id===(result.characterId||characterId));
-    if(editRevision===revision){currentId=result.characterId||currentId;draft=clone(saved);savedSharedSolos=sharedSolos();clean();if(automatic)renderSidebar();else render()}
+    if(editRevision===revision){currentId=result.characterId||currentId;draft=clone(saved);savedSharedSolos=sharedSolos();clean();render()}
     else if(saved){draft._remoteVersion=saved._remoteVersion;draft._remoteCampaignId=saved._remoteCampaignId;draft.updatedAt=saved.updatedAt}
    }
    showNewPointGrantToast();
-   if(!automatic){toast('✓ Ficha salva com sucesso',result.changes.length?`${result.changes.length} alteração(ões) registrada(s) no histórico.`:'Nenhuma nova alteração encontrada.');const completed=result.changes.filter(change=>String(change.field).endsWith('.current')&&n(change.after)>n(change.before));if(completed.length)toast('Progresso atualizado',completed.map(change=>`${change.before} → ${change.after}`).join(', '))}
+   toast('✓ Ficha salva com sucesso',result.changes.length?`${result.changes.length} alteração(ões) registrada(s) no histórico.`:'Nenhuma nova alteração encontrada.');const completed=result.changes.filter(change=>String(change.field).endsWith('.current')&&n(change.after)>n(change.before));if(completed.length)toast('Progresso atualizado',completed.map(change=>`${change.before} → ${change.after}`).join(', '))
    return true;
-  }catch(error){autoSaveFailures++;const message=String(error.message||error).replace(/^Error invoking remote method '[^']+':\s*(Error:\s*)?/i,'');$('#save-state').textContent=autoSaveFailures>=2?'Falha ao salvar · clique em Salvar alterações':'Não foi possível salvar · mais uma tentativa automática';$('#save-state').classList.add('dirty');if(!automatic||!autoSaveErrorNotified)toast('Não foi possível concluir o salvamento',message+' As alterações continuam pendentes; uma cópia foi guardada na pasta de dados.',true);autoSaveErrorNotified=true;return false}
+  }catch(error){const message=String(error.message||error).replace(/^Error invoking remote method '[^']+':\s*(Error:\s*)?/i,'');$('#save-state').textContent='Falha ao salvar · clique em Salvar alterações';$('#save-state').classList.add('dirty');toast('Não foi possível concluir o salvamento',message+' As alterações continuam pendentes; uma cópia foi guardada na pasta de dados.',true);return false}
  })();
  saveInFlight=operation;
- try{return await operation}finally{clearTimeout(slowTimer);saveInFlight=null;buttons.forEach(button=>{button.textContent='Salvar alterações';button.disabled=false});if(dirty)queueAutoSave(editRevision!==revision?1500:10000)}
+ try{return await operation}finally{clearTimeout(slowTimer);saveInFlight=null;buttons.forEach(button=>{button.textContent='Salvar alterações';button.disabled=false})}
 }
 function exportText(){
  const a=draft.attributes||{},bag=draft.backpack||{petFood:0,specialPetFood:0,travelMeals:0,premiumTravelMeals:0,jobs:[],items:[]},health=healthValues();
@@ -1017,14 +1013,14 @@ function setAppearanceControls(appearance){for(const key of Object.keys(appearan
 async function saveCurrentAppearance(){await setSessionUser(await window.rpg.updateAppearance(appearanceFromControls()))}
 async function setSessionUser(user){db.sessionUser=user;await applyUserAppearance(user)}
 
-document.addEventListener('click',async e=>{const tab=e.target.closest('[data-tab]');if(tab){activeTab=tab.dataset.tab;render()}const ch=e.target.closest('[data-char]');if(ch){if(dirty&&!await save({automatic:true}))return;currentId=ch.dataset.char;draft=clone(current());savedSharedSolos=sharedSolos();clean();render()}});
-$('#menu-sheets').addEventListener('click',()=>{const first=db.characters.find(character=>!character.archived);if(!first){activeView=db.sessionUser?.role==='admin'?'archived':'empty';render();return}activeView='sheets';if(!currentId||current()?.archived){currentId=first.id;draft=clone(first);savedSharedSolos=sharedSolos()}render();clean()});
-$('#menu-archived').addEventListener('click',async()=>{if(dirty&&!await save({automatic:true}))return;activeView='archived';render()});
-$('#menu-directory').addEventListener('click',async()=>{if(dirty&&!await save({automatic:true}))return;activeView='directory';render()});
+document.addEventListener('click',async e=>{const tab=e.target.closest('[data-tab]');if(tab){activeTab=tab.dataset.tab;render()}const ch=e.target.closest('[data-char]');if(ch){if(!requireSavedChanges())return;currentId=ch.dataset.char;draft=clone(current());savedSharedSolos=sharedSolos();clean();render()}});
+$('#menu-sheets').addEventListener('click',()=>{if(!requireSavedChanges())return;const first=db.characters.find(character=>!character.archived);if(!first){activeView=db.sessionUser?.role==='admin'?'archived':'empty';render();return}activeView='sheets';if(!currentId||current()?.archived){currentId=first.id;draft=clone(first);savedSharedSolos=sharedSolos()}render();clean()});
+$('#menu-archived').addEventListener('click',async()=>{if(!requireSavedChanges())return;activeView='archived';render()});
+$('#menu-directory').addEventListener('click',async()=>{if(!requireSavedChanges())return;activeView='directory';render()});
 $('#menu-sheet-defaults').addEventListener('click',()=>{if(!isMaster())return;const points=configuredDefaultPoints();$('#default-attribute-points').value=points.attributes;$('#default-new-skill-points').value=points.newSkills;renderDefaultGods();renderGlobalAttributes();renderAttributeHelpManager();$('#sheet-defaults-modal').classList.remove('hidden')});
 $('#close-sheet-defaults').addEventListener('click',()=>$('#sheet-defaults-modal').classList.add('hidden'));
 $('#sheet-defaults-modal').addEventListener('click',event=>{if(event.target.id==='sheet-defaults-modal')event.currentTarget.classList.add('hidden')});
-$('#save').addEventListener('click',save);$('#new-character').addEventListener('click',async()=>{if(dirty&&!await save({automatic:true}))return;newCharacter('Novo personagem')});$('#open-data').addEventListener('click',()=>window.rpg.openDataFolder());$('#export').addEventListener('click',()=>window.rpg.exportText(draft,exportText()).then(ok=>ok&&toast('Ficha exportada')));
+$('#save').addEventListener('click',save);$('#new-character').addEventListener('click',async()=>{if(!requireSavedChanges())return;newCharacter('Novo personagem')});$('#open-data').addEventListener('click',()=>window.rpg.openDataFolder());$('#export').addEventListener('click',()=>window.rpg.exportText(draft,exportText()).then(ok=>ok&&toast('Ficha exportada')));
 $('#close-import').addEventListener('click',closeImport);$('#preview-import').addEventListener('click',analyzeImport);$('#apply-import').addEventListener('click',applyImport);$('#import-modal').addEventListener('click',e=>{if(e.target.id==='import-modal')closeImport()});
 $('#paste-import').addEventListener('click',async()=>{try{const text=await window.rpg.readClipboardText();if(!text.trim())return toast('Nada para colar','Copie o texto da ficha antes de usar este botão.',true);$('#import-text').value=text;$('#import-text').focus();analyzeImport()}catch(error){toast('Não foi possível colar o TXT',error.message||String(error),true)}});
 $('#close-ocr').addEventListener('click',closeOcr);$('#apply-ocr').addEventListener('click',applyOcr);$('#ocr-modal').addEventListener('click',e=>{if(e.target.id==='ocr-modal')closeOcr()});
@@ -1049,19 +1045,19 @@ $('#account-button').addEventListener('click',()=>{$('#account-title').textConte
 $('#close-account').addEventListener('click',()=>$('#account-modal').classList.add('hidden'));$('#account-modal').addEventListener('click',e=>{if(e.target.id==='account-modal')$('#account-modal').classList.add('hidden')});
 const closeSkillCatalog=()=>$('#skill-catalog-modal').classList.add('hidden');
 $('#close-skill-catalog').addEventListener('click',closeSkillCatalog);$('#cancel-skill-catalog').addEventListener('click',closeSkillCatalog);$('#skill-catalog-modal').addEventListener('click',event=>{if(event.target.id==='skill-catalog-modal')closeSkillCatalog()});
-$('#skill-catalog-form').addEventListener('submit',async event=>{event.preventDefault();const name=$('#skill-catalog-name').value.trim(),category=$('#skill-catalog-category').value.trim()||'Outras',description=$('#skill-catalog-description').value.trim(),error=$('#skill-catalog-error'),save=$('#save-skill-catalog'),targetId=currentId,personal=skillCatalogScope==='personal';error.textContent='';if(!name){error.textContent='Informe o nome da perícia.';$('#skill-catalog-name').focus();return}if([...allSkillCatalog(),...(draft.skills||[]),...(draft.learning||[]),...(draft.quests||[])].some(skill=>skillNameKey(skill.name)===skillNameKey(name))){error.textContent='Essa perícia já está cadastrada.';$('#skill-catalog-name').focus();return}save.disabled=true;try{const skill={name,category,description};if(personal){const updated=await window.rpg.addCharacterSkill(targetId,skill);db=updated;if(currentId===targetId){const saved=current();if(dirty){draft.personalSkillCatalog=clone(saved.personalSkillCatalog||[]);queueAutoSave()}else{draft=clone(saved);clean()}}}else db=await window.rpg.updateSkillCatalog([...(db.settings?.customSkillCatalog||[]),skill]);closeSkillCatalog();render();toast('Perícia cadastrada',personal?`${name} está disponível somente nas rolagens desta ficha.`:`${name} está disponível nas rolagens de todos os personagens.`)}catch(cause){error.textContent=cause.message||String(cause);save.disabled=false}});
+$('#skill-catalog-form').addEventListener('submit',async event=>{event.preventDefault();const name=$('#skill-catalog-name').value.trim(),category=$('#skill-catalog-category').value.trim()||'Outras',description=$('#skill-catalog-description').value.trim(),error=$('#skill-catalog-error'),save=$('#save-skill-catalog'),targetId=currentId,personal=skillCatalogScope==='personal';error.textContent='';if(!name){error.textContent='Informe o nome da perícia.';$('#skill-catalog-name').focus();return}if([...allSkillCatalog(),...(draft.skills||[]),...(draft.learning||[]),...(draft.quests||[])].some(skill=>skillNameKey(skill.name)===skillNameKey(name))){error.textContent='Essa perícia já está cadastrada.';$('#skill-catalog-name').focus();return}save.disabled=true;try{const skill={name,category,description};if(personal){const updated=await window.rpg.addCharacterSkill(targetId,skill);db=updated;if(currentId===targetId){const saved=current();if(dirty){draft.personalSkillCatalog=clone(saved.personalSkillCatalog||[])}else{draft=clone(saved);clean()}}}else db=await window.rpg.updateSkillCatalog([...(db.settings?.customSkillCatalog||[]),skill]);closeSkillCatalog();render();toast('Perícia cadastrada',personal?`${name} está disponível somente nas rolagens desta ficha.`:`${name} está disponível nas rolagens de todos os personagens.`)}catch(cause){error.textContent=cause.message||String(cause);save.disabled=false}});
 $('#notifications-button').addEventListener('click',openAbilityNotifications);$('#close-notifications').addEventListener('click',()=>$('#notifications-modal').classList.add('hidden'));$('#notifications-modal').addEventListener('click',e=>{if(e.target.id==='notifications-modal')$('#notifications-modal').classList.add('hidden')});
 $('#point-notifications-button').addEventListener('click',openPointGrantNotifications);$('#close-point-notifications').addEventListener('click',()=>$('#point-notifications-modal').classList.add('hidden'));$('#point-notifications-modal').addEventListener('click',e=>{if(e.target.id==='point-notifications-modal')$('#point-notifications-modal').classList.add('hidden')});
 $('#open-tutorial').addEventListener('click',()=>{$('#account-modal').classList.add('hidden');$('#tutorial-modal').classList.remove('hidden')});$('#close-tutorial').addEventListener('click',()=>$('#tutorial-modal').classList.add('hidden'));$('#tutorial-modal').addEventListener('click',e=>{if(e.target.id==='tutorial-modal')$('#tutorial-modal').classList.add('hidden')});
 $('#check-updates').addEventListener('click',async()=>{const button=$('#check-updates');button.disabled=true;showUpdateProgress({stage:'connecting',percent:0});$('#account-modal').classList.add('hidden');try{const result=await window.rpg.checkForUpdates();if(['downloading','restarting'].includes(result.status))showUpdateProgress({stage:result.status,percent:0});else{$('#update-progress-modal')?.remove();toast('Atualizações',result.message||'Verificação iniciada.')}}catch(error){$('#update-progress-modal')?.remove();toast('Não foi possível verificar',error.message,true)}finally{button.disabled=false}});
-$('#logout').addEventListener('click',async()=>{if(dirty&&!await save({automatic:true}))return;await window.rpg.logout();clearImageDataCache();db=null;draft=null;currentId=null;dirty=false;window.rpg.setPendingChanges?.(false);$('#account-modal').classList.add('hidden');await showLogin()});
+$('#logout').addEventListener('click',async()=>{if(!requireSavedChanges())return;await window.rpg.logout();clearImageDataCache();db=null;draft=null;currentId=null;dirty=false;window.rpg.setPendingChanges?.(false);$('#account-modal').classList.add('hidden');await showLogin()});
 const reloadAppButton=$('#reload-app');
 if(!window.rpg.reloadApp)reloadAppButton.classList.add('hidden');
 reloadAppButton.addEventListener('click',async()=>{
  if(!db)return;
  reloadAppButton.disabled=true;
  try{
-  if(dirty&&!(await save({automatic:true}))){toast('Recarregamento cancelado','As alterações ainda não foram salvas. Tente novamente após salvar.',true);return}
+  if(!requireSavedChanges()){toast('Recarregamento cancelado','As alterações ainda não foram salvas. Tente novamente após salvar.',true);return}
   sessionStorage.setItem('rpg-reload-view','1');
   await window.rpg.reloadApp();
  }catch(error){sessionStorage.removeItem('rpg-reload-view');toast('Não foi possível recarregar',error.message||String(error),true)}
@@ -1095,8 +1091,6 @@ function renderUsersManager(){
  document.querySelectorAll('[data-assign-to-user]').forEach(el=>el.addEventListener('change',async()=>{if(!el.value)return;try{db=await window.rpg.assignCharacter(el.value,el.dataset.assignToUser);draft=clone(current());renderUsersManager();renderSidebar();toast('Personagem atribuído','A ficha foi colocada na conta selecionada.')}catch(error){toast('Não foi possível atribuir',error.message,true)}}));
  document.querySelectorAll('[data-delete-user]').forEach(el=>el.addEventListener('click',async()=>{if(!confirm('Excluir este usuário? As fichas dele voltarão para a conta da mestre.'))return;try{db=await window.rpg.deleteUser(el.dataset.deleteUser);renderUsersManager();toast('Usuário excluído')}catch(error){toast('Não foi possível excluir',error.message,true)}}));
 }
-window.addEventListener('blur',()=>{if(dirty)queueAutoSave(0)});
-window.rpg.onSaveBeforeClose?.(()=>save({automatic:true}));
 if (!window.rpg.setPendingChanges) window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue=''}});
 
 let onlineReloadTimer,onlineReloadBusy=false,onlinePendingNotice=false,pendingOnlineSnapshot=null,onlinePointerDown=false,pendingOnlineApplyTimer;
@@ -1132,7 +1126,7 @@ function reloadUpdatedCharacters(){
 window.rpg.onOnlineChange?.(reloadUpdatedCharacters);
 setInterval(()=>{if(db&&!db.online)reloadUpdatedCharacters()},5000);
 window.rpg.onUpdateStatus(status=>showUpdateProgress(status));
-$('#sheet-lock').addEventListener('click',async()=>{if(db?.sessionUser?.role!=='player'||!currentId)return;if(editingCharacterId===currentId){if(dirty&&!await save({automatic:true}))return;editingCharacterId=null;toast('Ficha bloqueada','Use o cadeado ao lado do nome para voltar a editar.')}else{editingCharacterId=currentId;toast('Edição liberada','Agora você pode alterar esta ficha.')}render()});
+$('#sheet-lock').addEventListener('click',async()=>{if(db?.sessionUser?.role!=='player'||!currentId)return;if(editingCharacterId===currentId){if(!requireSavedChanges())return;editingCharacterId=null;toast('Ficha bloqueada','Use o cadeado ao lado do nome para voltar a editar.')}else{editingCharacterId=currentId;toast('Edição liberada','Agora você pode alterar esta ficha.')}render()});
 (async()=>{
  if(sessionStorage.getItem('rpg-reload-view')==='1'){
   sessionStorage.removeItem('rpg-reload-view');

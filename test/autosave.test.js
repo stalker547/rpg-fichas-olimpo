@@ -4,13 +4,13 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 
-function autosaveHarness(saveCharacter){
+function saveHarness(saveCharacter){
  const source=fs.readFileSync(path.join(__dirname,'../src/app.js'),'utf8');
- const dirtyStart=source.indexOf('function queueAutoSave('),dirtyEnd=source.indexOf('\nfunction toast(',dirtyStart);
+ const dirtyStart=source.indexOf('function markDirty('),dirtyEnd=source.indexOf('\nfunction toast(',dirtyStart);
  const saveStart=source.indexOf('async function save('),saveEnd=source.indexOf('\nfunction exportText(',saveStart);
  const state={textContent:'',classList:{add(){},remove(){}}},button={textContent:'Salvar alterações',disabled:false};
  const timers=new Map(),pendingChanges=[];let nextTimer=0;
- const sandbox={db:{characters:[{id:'hero',name:'Antes',_remoteVersion:1}],settings:{solosByUser:{u1:0}}},draft:{id:'hero',name:'Antes',_remoteVersion:1},currentId:'hero',dirty:false,pendingNote:'',editRevision:0,autoSaveTimer:null,saveInFlight:null,autoSaveErrorNotified:false,autoSaveFailures:0,savedSharedSolos:0,
+ const sandbox={db:{characters:[{id:'hero',name:'Antes',_remoteVersion:1}],settings:{solosByUser:{u1:0}}},draft:{id:'hero',name:'Antes',_remoteVersion:1},currentId:'hero',dirty:false,pendingNote:'',editRevision:0,saveInFlight:null,savedSharedSolos:0,
   $:selector=>selector==='#save-state'?state:selector==='#save'?button:null,
   setTimeout:callback=>{timers.set(++nextTimer,callback);return nextTimer},clearTimeout:id=>timers.delete(id),
   window:{rpg:{saveCharacter,setPendingChanges:pending=>pendingChanges.push(pending)}},
@@ -23,50 +23,23 @@ function autosaveHarness(saveCharacter){
  return {sandbox,state,button,timers,pendingChanges};
 }
 
-test('edição agenda salvamento e sucesso limpa o estado sem cobrir o formulário',async()=>{
- let saved;const {sandbox,timers,pendingChanges}=autosaveHarness(async character=>{saved=character;return {db:{characters:[{...character,_remoteVersion:2}],settings:{solosByUser:{u1:0}}},characterId:'hero',changes:[]}});
+test('edição fica pendente até clicar em salvar',async()=>{
+ let calls=0;const {sandbox,state,timers,pendingChanges}=saveHarness(async character=>{calls++;return {db:{characters:[{...character,_remoteVersion:2}],settings:{solosByUser:{u1:0}}},characterId:'hero',changes:[]}});
  sandbox.draft.name='Depois';sandbox.markDirty('Nome alterado');
- assert.equal(timers.size,1);assert.equal(sandbox.dirty,true);
- await sandbox.save({automatic:true});
- assert.equal(saved.name,'Depois');assert.equal(sandbox.dirty,false);assert.equal(sandbox.draft._remoteVersion,2);
- assert.deepEqual(pendingChanges,[true,false]);
- const html=fs.readFileSync(path.join(__dirname,'../src/index.html'),'utf8');
- assert.equal(html.includes('id="dirty-bar"'),false);
+ assert.equal(calls,0);assert.equal(timers.size,0);assert.match(state.textContent,/clique em Salvar alterações/);
+ assert.equal(await sandbox.save(),true);assert.equal(calls,1);assert.equal(sandbox.dirty,false);assert.deepEqual(pendingChanges,[true,false]);
 });
 
-test('edição feita durante o envio não é apagada pelo primeiro salvamento',async()=>{
+test('edição durante o envio permanece pendente para o próximo salvamento manual',async()=>{
  let finishFirst;let calls=0;
- const {sandbox}=autosaveHarness(character=>{calls++;if(calls===1)return new Promise(resolve=>{finishFirst=()=>resolve({db:{characters:[{...character,_remoteVersion:2}],settings:{solosByUser:{u1:0}}},characterId:'hero',changes:[]})});return Promise.resolve({db:{characters:[{...character,_remoteVersion:3}],settings:{solosByUser:{u1:0}}},characterId:'hero',changes:[]})});
- sandbox.markDirty();const first=sandbox.save({automatic:true});
- sandbox.draft.name='Mais recente';sandbox.markDirty();finishFirst();await first;
- assert.equal(sandbox.dirty,true);assert.equal(sandbox.draft.name,'Mais recente');assert.equal(sandbox.draft._remoteVersion,2);
- await sandbox.save({automatic:true});assert.equal(sandbox.dirty,false);assert.equal(calls,2);
+ const {sandbox}=saveHarness(character=>{calls++;if(calls===1)return new Promise(resolve=>{finishFirst=()=>resolve({db:{characters:[{...character,_remoteVersion:2}],settings:{solosByUser:{u1:0}}},characterId:'hero',changes:[]})});return Promise.resolve({db:{characters:[{...character,_remoteVersion:3}],settings:{solosByUser:{u1:0}}},characterId:'hero',changes:[]})});
+ sandbox.markDirty();const first=sandbox.save();sandbox.draft.name='Mais recente';sandbox.markDirty();finishFirst();await first;
+ assert.equal(calls,1);assert.equal(sandbox.dirty,true);assert.equal(sandbox.draft.name,'Mais recente');
+ await sandbox.save();assert.equal(calls,2);assert.equal(sandbox.dirty,false);
 });
 
-test('falha online mantém alterações pendentes',async()=>{
- const {sandbox,state,timers}=autosaveHarness(async()=>{throw new Error('Sem conexão')});
- sandbox.draft.name='Não perder';sandbox.markDirty();
- assert.equal(await sandbox.save({automatic:true}),false);
- assert.equal(sandbox.dirty,true);assert.equal(sandbox.draft.name,'Não perder');assert.match(state.textContent,/mais uma tentativa/);
- assert.equal(timers.size,1);
-});
-
-test('salvamento volta a tentar após a conexão retornar',async()=>{
- let calls=0;
- const {sandbox,timers}=autosaveHarness(async character=>{
-  if(++calls===1)throw new Error('Sem conexão');
-  return {db:{characters:[{...character,_remoteVersion:2}],settings:{solosByUser:{u1:0}}},characterId:'hero',changes:[]};
- });
- sandbox.draft.name='Persistido';sandbox.markDirty();
- assert.equal(await sandbox.save({automatic:true}),false);
- const retry=[...timers.values()][0];timers.clear();retry();
- await sandbox.saveInFlight;
- assert.equal(calls,2);assert.equal(sandbox.dirty,false);assert.equal(sandbox.draft.name,'Persistido');
-});
-
-test('duas falhas interrompem repetição automática e deixam a falha visível',async()=>{
- let calls=0;const {sandbox,state,timers,button}=autosaveHarness(async()=>{calls++;throw new Error('Servidor indisponível')});
- sandbox.markDirty();assert.equal(await sandbox.save({automatic:true}),false);
- const retry=[...timers.values()][0];timers.clear();retry();await sandbox.saveInFlight;
- assert.equal(calls,2);assert.equal(timers.size,0);assert.match(state.textContent,/Falha ao salvar/);assert.equal(button.disabled,false);
+test('falha mantém a edição e não tenta novamente sozinha',async()=>{
+ let calls=0;const {sandbox,state,timers,button}=saveHarness(async()=>{calls++;throw new Error('Sem conexão')});
+ sandbox.draft.name='Não perder';sandbox.markDirty();assert.equal(await sandbox.save(),false);
+ assert.equal(calls,1);assert.equal(sandbox.dirty,true);assert.equal(sandbox.draft.name,'Não perder');assert.match(state.textContent,/Falha ao salvar/);assert.equal(button.disabled,false);assert.equal(timers.size,0);
 });

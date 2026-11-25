@@ -7,12 +7,13 @@ const vm=require('node:vm');
 test('rolagem online salva sem enviar texto pendente e preserva ambas as edições',async()=>{
  const source=fs.readFileSync(path.join(__dirname,'../src/app.js'),'utf8');
  const start=source.indexOf('async function registerOnlineRoll('),end=source.indexOf('\nfunction registerRollResult(',start);
- let sent,queued=0,rendered=0;
+ let sent,rendered=0;
  const sandbox={rollSubmissionInFlight:false,pendingOnlineRoll:null,currentId:'hero',rollProgressType:'skill',dirty:true,
   db:{characters:[{id:'hero',extraInfo:'Texto anterior',_remoteVersion:3}]},
   draft:{id:'hero',extraInfo:'Texto do jogador',skills:[],quests:[],learning:[],creations:[],abilities:[],rollHistory:[],_remoteVersion:3},
   window:{rpg:{registerRoll:async(id,record)=>{sent={id,record};return {db:{characters:[{id:'hero',extraInfo:'Texto da mestre',skills:[{name:'Caça',value:10}],quests:[],learning:[],creations:[],abilities:[],rollHistory:[{id:record.id}],_remoteVersion:4}]},advanced:['Caça +1'],failures:[]}}}},
-  n:value=>Number(value)||0,clone:value=>JSON.parse(JSON.stringify(value)),restoreRollSelection(){},queueAutoSave(){queued++},render(){rendered++},clean(){throw new Error('Edição pendente foi descartada')},toast(){},Date,Math};
+  rollSkills:new Set(['Caça']),rollEffectAbilities:new Set(['Efeito']),rollAttribute:'Força',rollOutcomeInput:'success',
+  n:value=>Number(value)||0,clone:value=>JSON.parse(JSON.stringify(value)),restoreRollSelection(){},render(){rendered++},clean(){throw new Error('Edição pendente foi descartada')},toast(){},Date,Math};
  vm.createContext(sandbox);
  await vm.runInContext(source.slice(start,end)+'\nregisterOnlineRoll({selected:[],effects:[],formula:"1d100",attribute:"",attributeValue:0,successTarget:50,modifier:0},"success")',sandbox);
  assert.equal(sent.id,'hero');
@@ -21,7 +22,11 @@ test('rolagem online salva sem enviar texto pendente e preserva ambas as ediçõ
  assert.match(sandbox.draft.extraInfo,/Texto do jogador/);
  assert.equal(sandbox.draft.skills[0].value,10);
  assert.equal(sandbox.draft._remoteVersion,3);
- assert.equal(queued,1);
+ assert.equal(sandbox.dirty,true);
+ assert.equal(sandbox.rollSkills.size,0);
+ assert.equal(sandbox.rollEffectAbilities.size,0);
+ assert.equal(sandbox.rollAttribute,'__none__');
+ assert.equal(sandbox.rollOutcomeInput,'');
  assert.equal(rendered,1);
 });
 
@@ -34,6 +39,7 @@ test('quest finalizada pela rolagem do jogador sai da quest e aparece como perí
   db:{characters:[{id:'hero',skills:[],quests:[quest]}]},
   draft:{id:'hero',skills:[],quests:[quest]},
   window:{rpg:{registerRoll:async()=>({db:{characters:[saved]},advanced:['Controle +1'],failures:[]})}},
+  rollSkills:new Set(),rollEffectAbilities:new Set(),rollAttribute:'Força',rollOutcomeInput:'success',
   n:value=>Number(value)||0,clone:value=>JSON.parse(JSON.stringify(value)),restoreRollSelection(){},render(){},clean(){sandbox.dirty=false},toast(){},Date,Math};
  vm.createContext(sandbox);
  await vm.runInContext(source.slice(start,end)+'\nregisterOnlineRoll({selected:[{name:"Controle",quest:true}],effects:[],formula:"1d100",attribute:"",attributeValue:0,successTarget:50,modifier:0},"success")',sandbox);
@@ -50,6 +56,7 @@ test('tentar novamente após resposta perdida não duplica o progresso',async()=
  const sandbox={rollSubmissionInFlight:false,pendingOnlineRoll:null,currentId:'hero',rollProgressType:'skill',dirty:false,
   db:{characters:[{id:'hero',skills:[{name:'Caça',value:1}],_remoteVersion:1}]},draft:{id:'hero',skills:[{name:'Caça',value:1}],_remoteVersion:1},
   window:{rpg:{registerRoll:async(_id,record)=>{sent.push(record.id);if(sent.length===1)throw new Error('Resposta perdida');return {db:{characters:[saved]},advanced:[],failures:[],duplicate:true}}}},
+  rollSkills:new Set(),rollEffectAbilities:new Set(),rollAttribute:'Força',rollOutcomeInput:'success',
   n:value=>Number(value)||0,clone:value=>JSON.parse(JSON.stringify(value)),restoreRollSelection(){},render(){},clean(){},toast(){},Date,Math};
  vm.createContext(sandbox);
  vm.runInContext(source.slice(start,end),sandbox);

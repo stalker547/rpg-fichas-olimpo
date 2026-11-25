@@ -48,28 +48,21 @@ function closeHarness() {
   return { win: context.createWindow(), ipcMain, choose(value) { answer = value; }, prompts() { return prompts; } };
 }
 
-async function finishSave(harness, saved) {
-  const { win, ipcMain } = harness;
-  assert.equal(win.saveRequest?.channel, 'app:save-before-close');
-  if (saved) ipcMain.emit('app:pending-changes', { sender: win.webContents }, false);
-  ipcMain.emit('app:save-before-close-result', { sender: win.webContents }, win.saveRequest.requestId, saved);
-  await new Promise(resolve => setImmediate(resolve));
-}
-
 test('a janela fecha normalmente quando a ficha está salva', () => {
   const { win } = closeHarness();
   assert.equal(win.close(), false);
   assert.equal(win.closed, true);
 });
 
-test('alterações pendentes são salvas automaticamente antes de fechar', async () => {
+test('alterações pendentes pedem confirmação sem salvar automaticamente', async () => {
   const harness = closeHarness();
   const { win, ipcMain } = harness;
   ipcMain.emit('app:pending-changes', { sender: win.webContents }, true);
   assert.equal(win.close(), true);
-  await finishSave(harness, true);
-  assert.equal(win.closed, true);
-  assert.equal(harness.prompts(), 0);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(win.closed, false);
+  assert.equal(harness.prompts(), 1);
+  assert.equal(win.saveRequest, undefined);
 });
 
 test('falha ao salvar mostra escolha e permite voltar à ficha', async () => {
@@ -77,7 +70,7 @@ test('falha ao salvar mostra escolha e permite voltar à ficha', async () => {
   const { win, ipcMain } = harness;
   ipcMain.emit('app:pending-changes', { sender: win.webContents }, true);
   assert.equal(win.close(), true);
-  await finishSave(harness, false);
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(harness.prompts(), 1);
   assert.equal(win.closed, false);
   ipcMain.emit('app:pending-changes', { sender: win.webContents }, false);
@@ -91,6 +84,6 @@ test('o usuário consegue fechar mesmo quando o salvamento falhou', async () => 
   ipcMain.emit('app:pending-changes', { sender: win.webContents }, true);
   choose(1);
   assert.equal(win.close(), true);
-  await finishSave(harness, false);
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(win.closed, true);
 });

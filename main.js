@@ -347,31 +347,12 @@ function createWindow() {
     win.webContents.on('render-process-gone', (event, details) => logLocalAuth('Tela encerrada', details.reason));
     win.webContents.on('did-fail-load', (event, code, description) => logLocalAuth('Falha ao carregar tela', `${code}: ${description}`));
   }
-  let pendingChanges = false, closingApproved = false, closePromptOpen = false, savingBeforeClose = false;
+  let pendingChanges = false, closingApproved = false, closePromptOpen = false;
   const onPendingChanges = (event, pending) => {
     if (event.sender === win.webContents) pendingChanges = Boolean(pending);
   };
   ipcMain.on('app:pending-changes', onPendingChanges);
   win.on('closed', () => ipcMain.removeListener('app:pending-changes', onPendingChanges));
-  function requestSaveBeforeClose() {
-    return new Promise(resolve => {
-      const requestId = crypto.randomUUID();
-      let finished = false;
-      const finish = saved => {
-        if (finished) return;
-        finished = true;
-        clearTimeout(timer);
-        ipcMain.removeListener('app:save-before-close-result', onResult);
-        resolve(Boolean(saved));
-      };
-      const onResult = (event, id, saved) => {
-        if (event.sender === win.webContents && id === requestId) finish(saved);
-      };
-      ipcMain.on('app:save-before-close-result', onResult);
-      const timer = setTimeout(() => finish(false), 25000);
-      win.webContents.send('app:save-before-close', requestId);
-    });
-  }
   function showClosePrompt() {
     if (win.isDestroyed() || closePromptOpen) return;
     closePromptOpen = true;
@@ -398,16 +379,7 @@ function createWindow() {
   win.on('close', event => {
     if (!pendingChanges || closingApproved) return;
     event.preventDefault();
-    if (closePromptOpen || savingBeforeClose) return;
-    savingBeforeClose = true;
-    requestSaveBeforeClose().then(() => {
-      savingBeforeClose = false;
-      if (win.isDestroyed()) return;
-      if (!pendingChanges) {
-        closingApproved = true;
-        win.close();
-      } else showClosePrompt();
-    });
+    showClosePrompt();
   });
   win.setMenuBarVisibility(false);
   win.loadFile(path.join(APP_ROOT, 'src', 'index.html'));
