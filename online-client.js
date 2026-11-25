@@ -33,6 +33,14 @@ class OnlineClient {
   return {characters:[...active,...archived].map(row=>this.characterFromRow(row)),settings,npcs:admin?(settings.npcs||[]):[],users:users.filter(u=>u.active).map(mapUser),sessionUser:this.user,online:true};
  }
  async character(id){return this.characterFromRow(await this.request(`/characters/${encodeURIComponent(id)}`))}
+ async imageDataUrl(route){
+  const options=()=>({headers:{Authorization:`Bearer ${this.token}`},signal:AbortSignal.timeout(20000)});
+  let response;try{response=await this.fetch(this.baseUrl+route,options())}catch(error){if(!this.fallbackFetch)throw error;response=await this.fallbackFetch(this.baseUrl+route,options())}
+  if(!response.ok)return '';
+  const mime=String(response.headers.get('content-type')||'').split(';')[0].trim().toLowerCase();
+  if(!mime.startsWith('image/'))return '';
+  return `data:${mime};base64,${Buffer.from(await response.arrayBuffer()).toString('base64')}`;
+ }
  async save(character){
   const data={...character};delete data._remoteVersion;delete data._remoteCampaignId;
   applyProgression(data);

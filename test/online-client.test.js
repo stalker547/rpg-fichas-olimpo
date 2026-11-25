@@ -16,6 +16,10 @@ test('verificação antes de salvar consulta somente a ficha selecionada',async(
  const character=await client.character('hero');
  assert.deepEqual(paths,['/characters/hero']);assert.equal(character._remoteVersion,4);assert.equal(character.ownerUserId,'player');
 });
+test('imagem usa a segunda conexão se a primeira falhar',async()=>{
+ let attempts=0;const client=new OnlineClient({fetch:async()=>{attempts++;throw new Error('Conexão indisponível')},fallbackFetch:async(url,options)=>{attempts++;assert.equal(new URL(url).pathname,'/media/abc');assert.equal(options.headers.Authorization,'Bearer token');return {ok:true,headers:{get:()=> 'image/png'},arrayBuffer:async()=>Uint8Array.from([1,2,3]).buffer}}});
+ client.token='token';assert.equal(await client.imageDataUrl('/media/abc'),'data:image/png;base64,AQID');assert.equal(attempts,2);
+});
 test('save sends original version and removes client metadata',async()=>{
  let sent;const client=new OnlineClient({fetch:async(url,options)=>{sent=JSON.parse(options.body);return {ok:true,text:async()=>JSON.stringify({id:'a',version:3})}}});
  await client.save({id:'a',name:'A',changeSource:'txt-import',_remoteVersion:2,_remoteCampaignId:'c'});
